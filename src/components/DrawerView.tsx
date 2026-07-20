@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Plus, ArrowUpDown, Package } from 'lucide-react';
-import { useStore } from '../store/store';
+import { useStore, useActiveRoom } from '../store/store';
 import { itemsInLocation, sortItems, itemMatches } from '../lib/selectors';
 import { cellName, cellKind, gridCells } from '../lib/shelf';
 import ItemCard from './ItemCard';
@@ -19,8 +19,9 @@ const SORT_LABELS: Record<SortMode, string> = {
 
 export default function DrawerView() {
   const loc = useStore((s) => s.openLocation);
-  const objects = useStore((s) => s.objects);
-  const items = useStore((s) => s.items);
+  const room = useActiveRoom();
+  const objects = room.objects;
+  const items = room.items;
   const tags = useStore((s) => s.tags);
   const units = useStore((s) => s.settings.units);
   const spaceAwareness = useStore((s) => s.settings.spaceAwareness);
@@ -197,7 +198,7 @@ function MoveRail({
   currentCell: string;
   onDropItem: (objectId: string, cellKey: string) => void;
 }) {
-  const objects = useStore((s) => s.objects);
+  const objects = useActiveRoom().objects;
   const [hover, setHover] = useState<string | null>(null);
 
   const targets = useMemo(() => {

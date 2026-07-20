@@ -1,11 +1,13 @@
 import { useState } from 'react';
-import { Eye, EyeOff, ChevronUp, ChevronDown, Plus, Layers, Trash2 } from 'lucide-react';
-import { useStore } from '../store/store';
+import { Eye, EyeOff, ChevronUp, ChevronDown, Plus, Layers, Trash2, Layers3 } from 'lucide-react';
+import { useStore, useActiveRoom } from '../store/store';
 
 export default function LayersPanel() {
-  const layers = useStore((s) => s.layers);
-  const objects = useStore((s) => s.objects);
-  const activeLayerId = useStore((s) => s.activeLayerId);
+  const room = useActiveRoom();
+  const layers = room.layers;
+  const objects = room.objects;
+  const activeLayerId = room.activeLayerId;
+  const objectLayerCount = layers.filter((l) => l.kind === 'object').length;
   const addLayer = useStore((s) => s.addLayer);
   const toggleLayer = useStore((s) => s.toggleLayer);
   const renameLayer = useStore((s) => s.renameLayer);
@@ -55,6 +57,11 @@ export default function LayersPanel() {
                 >
                   {l.visible ? <Eye size={14} /> : <EyeOff size={14} style={{ opacity: 0.5 }} />}
                 </button>
+                {l.kind === 'wall' && (
+                  <span className="wall-layer-icon" title="Wall Designer layer">
+                    <Layers3 size={12} />
+                  </span>
+                )}
                 {editing === l.id ? (
                   <input
                     autoFocus
@@ -101,7 +108,7 @@ export default function LayersPanel() {
                   >
                     <ChevronDown size={13} />
                   </button>
-                  {layers.length > 1 && (
+                  {l.kind === 'object' && objectLayerCount > 1 && (
                     <button
                       className="btn icon danger"
                       onClick={(e) => {

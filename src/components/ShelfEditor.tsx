@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import type { RoomObject, Storage, CellMeta } from '../types';
 import { gridCells } from '../lib/shelf';
-import { useStore } from '../store/store';
+import { useStore, useActiveRoom } from '../store/store';
 import { Plus, Minus } from 'lucide-react';
 
 /** Build/repair the per-cell metadata map for a given grid size. */
@@ -34,7 +34,7 @@ interface Props {
 export default function ShelfEditor({ obj }: Props) {
   const setStorage = useStore((s) => s.setStorage);
   const removeItem = useStore((s) => s.removeItem);
-  const items = useStore((s) => s.items);
+  const items = useActiveRoom().items;
   const boxRef = useRef<HTMLDivElement>(null);
   const [sel, setSel] = useState<string | null>(null);
 

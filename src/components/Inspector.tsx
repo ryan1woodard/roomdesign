@@ -1,5 +1,5 @@
 import { Copy, Trash2, DoorOpen, Boxes, X } from 'lucide-react';
-import { useStore } from '../store/store';
+import { useStore, useActiveRoom } from '../store/store';
 import { fromInches, toInches, UNIT_LABEL } from '../lib/units';
 import type { RoomObject } from '../types';
 import ShelfEditor from './ShelfEditor';
@@ -38,11 +38,12 @@ function NumberField({
 
 export default function Inspector() {
   const selection = useStore((s) => s.selection);
-  const objects = useStore((s) => s.objects);
-  const layers = useStore((s) => s.layers);
+  const room = useActiveRoom();
+  const objects = room.objects;
+  const layers = room.layers.filter((l) => l.kind === 'object');
   const units = useStore((s) => s.settings.units);
   const spaceAwareness = useStore((s) => s.settings.spaceAwareness);
-  const items = useStore((s) => s.items);
+  const items = room.items;
   const update = useStore((s) => s.updateObject);
   const remove = useStore((s) => s.removeObject);
   const duplicate = useStore((s) => s.duplicateObject);
@@ -50,6 +51,10 @@ export default function Inspector() {
   const open = useStore((s) => s.open);
   const openPicker = useStore((s) => s.openPicker);
   const clearSelection = useStore((s) => s.clearSelection);
+  const rooms = useStore((s) => s.rooms);
+  const roomOrder = useStore((s) => s.roomOrder);
+  const moveObjectToRoom = useStore((s) => s.moveObjectToRoom);
+  const otherRooms = roomOrder.map((id) => rooms[id]).filter((r) => r.id !== room.id);
 
   if (selection.length !== 1) {
     if (selection.length > 1) {
@@ -216,6 +221,26 @@ export default function Inspector() {
             onChange={(e) => update(obj.id, { notes: e.target.value })}
           />
         </div>
+
+        {otherRooms.length > 0 && (
+          <div className="section">
+            <span className="label">Move to room</span>
+            <select
+              className="field"
+              value=""
+              onChange={(e) => e.target.value && moveObjectToRoom(obj.id, e.target.value)}
+            >
+              <option value="">
+                Choose a room…
+              </option>
+              {otherRooms.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <div className="inspector-actions">
           <button className="btn" onClick={() => duplicate(obj.id)}>

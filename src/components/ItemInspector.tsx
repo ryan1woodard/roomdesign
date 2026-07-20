@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { X, ImagePlus, Trash2, Plus, Minus, ChevronDown } from 'lucide-react';
-import { useStore } from '../store/store';
+import { useStore, useActiveRoom } from '../store/store';
 import { fromInches, toInches, UNIT_LABEL } from '../lib/units';
 import { locationKeys, cellName } from '../lib/shelf';
 
@@ -8,13 +8,17 @@ const TAG_COLORS = ['#4f8cff', '#39c07a', '#ff9f45', '#a678f0', '#8b95a7', '#ff5
 
 export default function ItemInspector() {
   const id = useStore((s) => s.inspectItemId);
-  const items = useStore((s) => s.items);
+  const room = useActiveRoom();
+  const items = room.items;
   const tags = useStore((s) => s.tags);
-  const objects = useStore((s) => s.objects);
+  const objects = room.objects;
+  const rooms = useStore((s) => s.rooms);
+  const roomOrder = useStore((s) => s.roomOrder);
   const units = useStore((s) => s.settings.units);
   const update = useStore((s) => s.updateItem);
   const remove = useStore((s) => s.removeItem);
   const move = useStore((s) => s.moveItem);
+  const moveItemToRoom = useStore((s) => s.moveItemToRoom);
   const addTag = useStore((s) => s.addTag);
   const inspectItem = useStore((s) => s.inspectItem);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -134,19 +138,38 @@ export default function ItemInspector() {
         <label className="label">Location</label>
         <select
           className="field"
-          value={`${item.objectId}|${item.cellKey}`}
+          value={`${room.id}|${item.objectId}|${item.cellKey}`}
           onChange={(e) => {
-            const [objectId, cellKey] = e.target.value.split('|');
-            move(item.id, { objectId, cellKey });
+            const [roomId, objectId, cellKey] = e.target.value.split('|');
+            if (roomId === room.id) move(item.id, { objectId, cellKey });
+            else moveItemToRoom(item.id, roomId, { objectId, cellKey });
           }}
         >
-          {Object.values(objects).map((o) =>
-            locationKeys(o).map((k) => (
-              <option key={`${o.id}|${k}`} value={`${o.id}|${k}`}>
-                {o.name} · {cellName(o, k)}
-              </option>
-            )),
-          )}
+          <optgroup label={room.name}>
+            {Object.values(objects).map((o) =>
+              locationKeys(o).map((k) => (
+                <option key={`${room.id}|${o.id}|${k}`} value={`${room.id}|${o.id}|${k}`}>
+                  {o.name} · {cellName(o, k)}
+                </option>
+              )),
+            )}
+          </optgroup>
+          {roomOrder
+            .filter((rid) => rid !== room.id)
+            .map((rid) => {
+              const r = rooms[rid];
+              return (
+                <optgroup key={rid} label={r.name}>
+                  {Object.values(r.objects).map((o) =>
+                    locationKeys(o).map((k) => (
+                      <option key={`${rid}|${o.id}|${k}`} value={`${rid}|${o.id}|${k}`}>
+                        {o.name} · {cellName(o, k)}
+                      </option>
+                    )),
+                  )}
+                </optgroup>
+              );
+            })}
         </select>
 
         <button className="optional-toggle" onClick={() => setShowOptional((v) => !v)}>

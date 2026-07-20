@@ -14,6 +14,8 @@ export interface Layer {
   id: string;
   name: string;
   visible: boolean;
+  /** 'wall' layers activate Wall Designer Mode when made active. Exactly one per room. */
+  kind: 'object' | 'wall';
 }
 
 /**
@@ -110,10 +112,89 @@ export interface Settings {
   gridVisible: boolean;
   snapToGrid: boolean;
   spaceAwareness: boolean;
+  /** Global override — show every object's label regardless of hover state. */
+  showAllLabels: boolean;
+  /** Default thickness (inches) applied to newly-drawn walls. */
+  wallThickness: number;
+  /** Snap wall drawing/dragging to 15° increments. */
+  wallAngleSnap: boolean;
 }
 
 /** A single location reference: an object + one of its cells. */
 export interface LocationRef {
   objectId: string;
   cellKey: string;
+}
+
+// ---------------------------------------------------------------------------
+// Walls, doors, windows, floors
+// ---------------------------------------------------------------------------
+
+export interface WallVertex {
+  id: string;
+  x: number;
+  y: number;
+}
+
+export interface WallSegment {
+  id: string;
+  a: string; // vertex id
+  b: string; // vertex id
+  thickness: number; // inches
+  curved: boolean;
+  /** Perpendicular offset (inches) of the bezier control point; ignored unless curved. */
+  curveOffset: number;
+}
+
+export type SwingSide = 'left' | 'right';
+
+export interface WallOpening {
+  id: string;
+  wallId: string;
+  kind: 'door' | 'window';
+  /** Position along the wall from vertex a to b, 0..1. */
+  t: number;
+  width: number; // inches
+  swing: SwingSide;
+  /** Which face of the wall the door swings toward. */
+  flip: boolean;
+}
+
+export interface FloorPolygon {
+  id: string;
+  /** Ordered loop of vertex ids forming the enclosed polygon. */
+  vertexIds: string[];
+}
+
+export interface Blueprint {
+  image: string; // data URL
+  opacity: number;
+}
+
+export interface CameraState {
+  x: number;
+  y: number;
+  scale: number;
+}
+
+export interface Room {
+  id: string;
+  name: string;
+  order: number;
+  notes: string;
+
+  objects: Record<string, RoomObject>;
+  items: Record<string, Item>;
+  layers: Layer[];
+  activeLayerId: string;
+
+  vertices: Record<string, WallVertex>;
+  walls: Record<string, WallSegment>;
+  openings: Record<string, WallOpening>;
+  floors: FloorPolygon[];
+  floorColor: string;
+  floorOpacity: number;
+
+  camera: CameraState;
+  blueprint: Blueprint | null;
 }

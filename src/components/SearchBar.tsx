@@ -3,21 +3,48 @@ import { Search, X, MapPin } from 'lucide-react';
 import { useStore } from '../store/store';
 import { itemMatches } from '../lib/selectors';
 import { cellName } from '../lib/shelf';
+import type { Item, Room } from '../types';
+
+interface CrossRoomHit {
+  item: Item;
+  room: Room;
+  objectName: string;
+  cellLabel: string;
+}
 
 export default function SearchBar() {
   const search = useStore((s) => s.search);
   const setSearch = useStore((s) => s.setSearch);
-  const items = useStore((s) => s.items);
-  const objects = useStore((s) => s.objects);
+  const rooms = useStore((s) => s.rooms);
+  const roomOrder = useStore((s) => s.roomOrder);
   const tags = useStore((s) => s.tags);
   const open = useStore((s) => s.open);
+  const setActiveRoom = useStore((s) => s.setActiveRoom);
+  const activeRoomId = useStore((s) => s.activeRoomId);
 
   const results = useMemo(() => {
     if (!search.trim()) return [];
-    return Object.values(items)
-      .filter((i) => itemMatches(i, search, tags))
-      .slice(0, 8);
-  }, [items, search, tags]);
+    const hits: CrossRoomHit[] = [];
+    for (const roomId of roomOrder) {
+      const room = rooms[roomId];
+      for (const it of Object.values(room.items)) {
+        if (!itemMatches(it, search, tags)) continue;
+        const obj = room.objects[it.objectId];
+        hits.push({
+          item: it,
+          room,
+          objectName: obj?.name ?? 'Unknown',
+          cellLabel: obj ? cellName(obj, it.cellKey) : '',
+        });
+      }
+    }
+    return hits.slice(0, 8);
+  }, [rooms, roomOrder, search, tags]);
+
+  const goTo = (hit: CrossRoomHit) => {
+    if (hit.room.id !== activeRoomId) setActiveRoom(hit.room.id);
+    open({ objectId: hit.item.objectId, cellKey: hit.item.cellKey });
+  };
 
   return (
     <div className="searchbar-wrap">
@@ -25,7 +52,7 @@ export default function SearchBar() {
         <Search size={16} className="search-icon" />
         <input
           className="search-input"
-          placeholder="Search anything — items, tags, notes…"
+          placeholder="Search anything…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -38,28 +65,20 @@ export default function SearchBar() {
 
       {results.length > 0 && (
         <div className="search-results glass">
-          {results.map((it) => {
-            const obj = objects[it.objectId];
-            const where = obj ? `${obj.name} · ${cellName(obj, it.cellKey)}` : 'Unknown';
-            return (
-              <button
-                key={it.id}
-                className="search-result"
-                onClick={() => open({ objectId: it.objectId, cellKey: it.cellKey })}
-              >
-                <div className="sr-thumb">
-                  {it.image ? <img src={it.image} alt="" /> : it.name.slice(0, 1)}
+          {results.map((hit) => (
+            <button key={hit.item.id} className="search-result" onClick={() => goTo(hit)}>
+              <div className="sr-thumb">
+                {hit.item.image ? <img src={hit.item.image} alt="" /> : hit.item.name.slice(0, 1)}
+              </div>
+              <div className="sr-body">
+                <div className="sr-name">{hit.item.name}</div>
+                <div className="sr-where">
+                  <MapPin size={11} /> {hit.room.name} · {hit.objectName} · {hit.cellLabel}
                 </div>
-                <div className="sr-body">
-                  <div className="sr-name">{it.name}</div>
-                  <div className="sr-where">
-                    <MapPin size={11} /> {where}
-                  </div>
-                </div>
-                <div className="sr-qty">×{it.quantity}</div>
-              </button>
-            );
-          })}
+              </div>
+              <div className="sr-qty">×{hit.item.quantity}</div>
+            </button>
+          ))}
         </div>
       )}
     </div>

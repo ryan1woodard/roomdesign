@@ -1,16 +1,15 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Package } from 'lucide-react';
-import { useStore } from '../store/store';
+import { useStore, useActiveRoom } from '../store/store';
 import { gridCells, cellName } from '../lib/shelf';
 
 export default function CellPicker() {
   const pickerObjectId = useStore((s) => s.pickerObjectId);
-  const objects = useStore((s) => s.objects);
-  const items = useStore((s) => s.items);
+  const room = useActiveRoom();
   const openPicker = useStore((s) => s.openPicker);
   const open = useStore((s) => s.open);
 
-  const obj = pickerObjectId ? objects[pickerObjectId] : null;
+  const obj = pickerObjectId ? room.objects[pickerObjectId] : null;
 
   return (
     <AnimatePresence>
@@ -43,7 +42,7 @@ export default function CellPicker() {
             >
               {gridCells(obj.storage).map((c) => {
                 const meta = obj.storage.type === 'grid' ? obj.storage.cells[c.key] : undefined;
-                const count = Object.values(items).filter(
+                const count = Object.values(room.items).filter(
                   (i) => i.objectId === obj.id && i.cellKey === c.key,
                 ).length;
                 return (
