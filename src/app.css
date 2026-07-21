@@ -109,36 +109,6 @@
   color: #ff5d6c;
   font-weight: 600;
 }
-.save-tooltip {
-  position: absolute;
-  top: calc(100% + 8px);
-  left: 0;
-  min-width: 240px;
-  border-radius: var(--r-md);
-  padding: 10px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  z-index: 20;
-  animation: fade-in 0.12s ease;
-}
-.save-tooltip-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  font-size: 12px;
-}
-.save-tooltip-row strong {
-  color: var(--text-2);
-  font-weight: 500;
-}
-.save-tooltip-row span {
-  color: var(--text-0);
-  text-align: right;
-}
-.save-tooltip-error span {
-  color: #ff5d6c;
-}
 .unit-select {
   background: var(--bg-1);
   color: var(--text-1);
@@ -1019,6 +989,22 @@
 }
 .new-tag-row .btn {
   background: var(--bg-2);
+}
+.ii-current-location {
+  margin: 0;
+  font-size: 12px;
+}
+.move-row {
+  display: flex;
+  gap: 6px;
+}
+.move-row .field {
+  flex: 1;
+  min-width: 0;
+}
+.move-qty-input {
+  flex: 0 0 56px;
+  text-align: center;
 }
 .optional-toggle {
   display: flex;

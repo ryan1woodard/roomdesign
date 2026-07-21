@@ -213,6 +213,11 @@ interface AppState extends Doc {
   removeItem: (id: string) => void;
   moveItem: (id: string, loc: LocationRef) => void;
   moveItemToRoom: (itemId: string, toRoomId: string, loc: LocationRef) => void;
+  /** Moves `qty` units of an item to a location, splitting off a new item
+   * record for the moved portion when qty is less than the full stack
+   * (leaving the remainder behind), or moving the whole item when qty
+   * covers the entire quantity. `toRoomId` may be the active room's id. */
+  moveItemQty: (itemId: string, qty: number, toRoomId: string, loc: LocationRef) => void;
   setItemOrder: (orderedIds: string[]) => void;
   markUsed: (id: string) => void;
 
@@ -1030,6 +1035,86 @@ export const useStore = create<AppState>()(
               [toRoom.id]: { ...toRoom, items: { ...toRoom.items, [itemId]: movedItem } },
             },
             inspectItemId: fromRoom.id === s.activeRoomId ? null : s.inspectItemId,
+          };
+        }),
+      moveItemQty: (itemId, qty, toRoomId, loc) =>
+        set((s) => {
+          const fromRoom = s.rooms[s.activeRoomId];
+          const item = fromRoom?.items[itemId];
+          const toRoom = s.rooms[toRoomId];
+          if (!fromRoom || !item || !toRoom) return {};
+          const moveQty = Math.max(1, Math.min(Math.round(qty), item.quantity));
+          const sameRoom = fromRoom.id === toRoom.id;
+          if (sameRoom && loc.objectId === item.objectId && loc.cellKey === item.cellKey) return {};
+
+          const fromObj = fromRoom.objects[item.objectId];
+          const toObj = toRoom.objects[loc.objectId];
+          const fromLabel = sameRoom
+            ? fromObj
+              ? `${fromObj.name} · ${cellName(fromObj, item.cellKey)}`
+              : 'Unknown'
+            : fromObj
+              ? `${fromRoom.name} · ${fromObj.name} · ${cellName(fromObj, item.cellKey)}`
+              : fromRoom.name;
+          const toLabel = sameRoom
+            ? toObj
+              ? `${toObj.name} · ${cellName(toObj, loc.cellKey)}`
+              : 'Unknown'
+            : toObj
+              ? `${toRoom.name} · ${toObj.name} · ${cellName(toObj, loc.cellKey)}`
+              : toRoom.name;
+
+          const full = moveQty >= item.quantity;
+          const toSiblings = Object.values(toRoom.items).filter(
+            (i) => i.objectId === loc.objectId && i.cellKey === loc.cellKey,
+          );
+
+          // Same-room and cross-room moves share this logic by having both
+          // "sides" point at the same working map when the room is the same.
+          let fromItems = { ...fromRoom.items };
+          let toItems = sameRoom ? fromItems : { ...toRoom.items };
+
+          if (full) {
+            const movedItem: Item = { ...item, objectId: loc.objectId, cellKey: loc.cellKey, order: toSiblings.length, updatedAt: Date.now() };
+            delete fromItems[itemId];
+            toItems = { ...(sameRoom ? fromItems : toItems), [itemId]: movedItem };
+            if (sameRoom) fromItems = toItems;
+          } else {
+            const remaining: Item = { ...item, quantity: item.quantity - moveQty, updatedAt: Date.now() };
+            const newId = `item-${nanoid(8)}`;
+            const newItem: Item = {
+              ...item,
+              id: newId,
+              quantity: moveQty,
+              objectId: loc.objectId,
+              cellKey: loc.cellKey,
+              order: toSiblings.length,
+              createdAt: Date.now(),
+              updatedAt: Date.now(),
+            };
+            fromItems = { ...fromItems, [itemId]: remaining };
+            toItems = { ...(sameRoom ? fromItems : toItems), [newId]: newItem };
+            if (sameRoom) fromItems = toItems;
+          }
+
+          return {
+            ...withHistory(s, 'move-item-qty'),
+            ...pushLogEntry(s, {
+              scope: 'inventory',
+              action: 'moved',
+              entityId: itemId,
+              subject: full ? item.name : `${item.name} (${moveQty} of ${item.quantity})`,
+              roomId: toRoom.id,
+              roomName: toRoom.name,
+              previousValue: fromLabel,
+              newValue: toLabel,
+            }),
+            rooms: {
+              ...s.rooms,
+              [fromRoom.id]: { ...fromRoom, items: fromItems },
+              [toRoom.id]: { ...toRoom, items: toItems },
+            },
+            inspectItemId: full && !sameRoom && fromRoom.id === s.activeRoomId ? null : s.inspectItemId,
           };
         }),
       setItemOrder: (orderedIds) =>

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { X, ImagePlus, Trash2, Plus, Minus, ChevronDown } from 'lucide-react';
 import { useStore, useActiveRoom } from '../store/store';
 import { fromInches, toInches, UNIT_LABEL } from '../lib/units';
@@ -17,13 +17,20 @@ export default function ItemInspector() {
   const units = useStore((s) => s.settings.units);
   const update = useStore((s) => s.updateItem);
   const remove = useStore((s) => s.removeItem);
-  const move = useStore((s) => s.moveItem);
-  const moveItemToRoom = useStore((s) => s.moveItemToRoom);
+  const moveQtyAction = useStore((s) => s.moveItemQty);
   const addTag = useStore((s) => s.addTag);
   const inspectItem = useStore((s) => s.inspectItem);
   const fileRef = useRef<HTMLInputElement>(null);
   const [showOptional, setShowOptional] = useState(false);
   const [newTag, setNewTag] = useState('');
+  const [moveTarget, setMoveTarget] = useState('');
+  const [moveQty, setMoveQty] = useState(1);
+
+  useEffect(() => {
+    setMoveTarget('');
+    setMoveQty(id ? items[id]?.quantity ?? 1 : 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
 
   const item = id ? items[id] : null;
   if (!item) return null;
@@ -136,41 +143,67 @@ export default function ItemInspector() {
         </div>
 
         <label className="label">Location</label>
-        <select
-          className="field"
-          value={`${room.id}|${item.objectId}|${item.cellKey}`}
-          onChange={(e) => {
-            const [roomId, objectId, cellKey] = e.target.value.split('|');
-            if (roomId === room.id) move(item.id, { objectId, cellKey });
-            else moveItemToRoom(item.id, roomId, { objectId, cellKey });
-          }}
-        >
-          <optgroup label={room.name}>
-            {Object.values(objects).map((o) =>
-              locationKeys(o).map((k) => (
-                <option key={`${room.id}|${o.id}|${k}`} value={`${room.id}|${o.id}|${k}`}>
-                  {o.name} · {cellName(o, k)}
-                </option>
-              )),
-            )}
-          </optgroup>
-          {roomOrder
-            .filter((rid) => rid !== room.id)
-            .map((rid) => {
-              const r = rooms[rid];
-              return (
-                <optgroup key={rid} label={r.name}>
-                  {Object.values(r.objects).map((o) =>
-                    locationKeys(o).map((k) => (
-                      <option key={`${rid}|${o.id}|${k}`} value={`${rid}|${o.id}|${k}`}>
-                        {o.name} · {cellName(o, k)}
-                      </option>
-                    )),
-                  )}
-                </optgroup>
-              );
-            })}
-        </select>
+        <p className="hint ii-current-location">
+          {room.name} · {objects[item.objectId] ? `${objects[item.objectId].name} · ${cellName(objects[item.objectId], item.cellKey)}` : 'Unknown'}
+        </p>
+
+        <div className="move-row">
+          <select className="field" value={moveTarget} onChange={(e) => setMoveTarget(e.target.value)}>
+            <option value="">Move to…</option>
+            <optgroup label={room.name}>
+              {Object.values(objects).map((o) =>
+                locationKeys(o)
+                  .filter((k) => !(o.id === item.objectId && k === item.cellKey))
+                  .map((k) => (
+                    <option key={`${room.id}|${o.id}|${k}`} value={`${room.id}|${o.id}|${k}`}>
+                      {o.name} · {cellName(o, k)}
+                    </option>
+                  )),
+              )}
+            </optgroup>
+            {roomOrder
+              .filter((rid) => rid !== room.id)
+              .map((rid) => {
+                const r = rooms[rid];
+                return (
+                  <optgroup key={rid} label={r.name}>
+                    {Object.values(r.objects).map((o) =>
+                      locationKeys(o).map((k) => (
+                        <option key={`${rid}|${o.id}|${k}`} value={`${rid}|${o.id}|${k}`}>
+                          {o.name} · {cellName(o, k)}
+                        </option>
+                      )),
+                    )}
+                  </optgroup>
+                );
+              })}
+          </select>
+
+          {item.quantity > 1 && (
+            <input
+              className="field move-qty-input"
+              type="number"
+              min={1}
+              max={item.quantity}
+              value={moveQty}
+              title={`How many of ${item.quantity} to move`}
+              onChange={(e) => setMoveQty(Math.max(1, Math.min(item.quantity, parseInt(e.target.value) || 1)))}
+            />
+          )}
+
+          <button
+            className="btn primary"
+            disabled={!moveTarget}
+            onClick={() => {
+              if (!moveTarget) return;
+              const [roomId, objectId, cellKey] = moveTarget.split('|');
+              moveQtyAction(item.id, item.quantity > 1 ? moveQty : item.quantity, roomId, { objectId, cellKey });
+              setMoveTarget('');
+            }}
+          >
+            Move
+          </button>
+        </div>
 
         <button className="optional-toggle" onClick={() => setShowOptional((v) => !v)}>
           <ChevronDown size={14} style={{ transform: showOptional ? 'rotate(180deg)' : 'none' }} />
