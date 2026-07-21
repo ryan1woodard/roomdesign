@@ -252,7 +252,38 @@
   color: var(--text-1);
 }
 
-/* ---------------- Left rail (Room Navigator + Layers, stacked) ---------------- */
+/* ---------------- Mode switch (Design / Inventory) ---------------- */
+.mode-switch-panel {
+  display: flex;
+  gap: 4px;
+  padding: 5px;
+  border-radius: var(--r-lg);
+}
+.mode-switch-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: var(--r-md);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-2);
+  background: transparent;
+  border: none;
+  white-space: nowrap;
+  transition: background 0.12s, color 0.12s;
+}
+.mode-switch-btn:hover {
+  color: var(--text-0);
+}
+.mode-switch-btn.active {
+  background: var(--accent-soft);
+  color: var(--text-0);
+}
+
+/* ---------------- Left rail (Mode switch + Room Navigator + Layers, stacked) ---------------- */
 .left-rail {
   position: absolute;
   top: 84px;

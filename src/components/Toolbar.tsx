@@ -15,13 +15,11 @@ import {
   PencilLine,
   DoorOpen,
   RectangleHorizontal,
-  Hammer,
-  Package,
   History,
 } from 'lucide-react';
 import { useStore, useActiveRoom } from '../store/store';
 import { ALL_UNITS, UNIT_LABEL } from '../lib/units';
-import type { ObjectKind, AppMode } from '../types';
+import type { ObjectKind } from '../types';
 import SaveIndicator from './SaveIndicator';
 
 const TOOLS: { kind: ObjectKind; icon: React.ReactNode; label: string }[] = [
@@ -37,11 +35,6 @@ const WALL_TOOLS: { tool: 'select' | 'draw' | 'door' | 'window'; icon: React.Rea
   { tool: 'draw', icon: <PencilLine size={17} />, label: 'Draw walls' },
   { tool: 'door', icon: <DoorOpen size={17} />, label: 'Add door' },
   { tool: 'window', icon: <RectangleHorizontal size={17} />, label: 'Add window' },
-];
-
-const MODES: { mode: AppMode; icon: React.ReactNode; label: string }[] = [
-  { mode: 'design', icon: <Hammer size={14} />, label: 'Design' },
-  { mode: 'inventory', icon: <Package size={14} />, label: 'Inventory' },
 ];
 
 export default function Toolbar() {
@@ -60,7 +53,6 @@ export default function Toolbar() {
   const requestFitToView = useStore((s) => s.requestFitToView);
   const wallTool = useStore((s) => s.wallTool);
   const setWallTool = useStore((s) => s.setWallTool);
-  const setMode = useStore((s) => s.setMode);
   const openLogViewer = useStore((s) => s.openLogViewer);
 
   const mode = settings.mode;
@@ -74,16 +66,6 @@ export default function Toolbar() {
         <span className="brand-name">SRS Lab Designer</span>
       </div>
       <SaveIndicator />
-      <div className="divider-v" />
-
-      <div className="mode-switch">
-        {MODES.map((m) => (
-          <button key={m.mode} className={mode === m.mode ? 'active' : ''} onClick={() => setMode(m.mode)}>
-            {m.icon}
-            {m.label}
-          </button>
-        ))}
-      </div>
       <div className="divider-v" />
 
       {mode === 'inventory' ? (

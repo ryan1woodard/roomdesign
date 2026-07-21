@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import RoomCanvas from './components/RoomCanvas';
 import Toolbar from './components/Toolbar';
 import SearchBar from './components/SearchBar';
+import ModeSwitch from './components/ModeSwitch';
 import LayersPanel from './components/LayersPanel';
 import RoomNavigator from './components/RoomNavigator';
 import Inspector from './components/Inspector';
@@ -170,6 +171,7 @@ export default function App() {
           <UserMenu />
         </div>
         <div className="left-rail">
+          <ModeSwitch />
           <RoomNavigator />
           {mode === 'design' && <LayersPanel />}
         </div>
