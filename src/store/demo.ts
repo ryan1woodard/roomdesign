@@ -52,8 +52,6 @@ export function buildDemo(): {
     kind: 'door',
     t: 0.5,
     width: 36,
-    swing: 'right',
-    flip: false,
   };
   const labWindow: WallOpening = {
     id: 'open-lab-window',
@@ -61,8 +59,6 @@ export function buildDemo(): {
     kind: 'window',
     t: 0.3,
     width: 48,
-    swing: 'right',
-    flip: false,
   };
 
   const desk: RoomObject = {
@@ -231,8 +227,6 @@ export function buildDemo(): {
     kind: 'door',
     t: 0.5,
     width: 32,
-    swing: 'left',
-    flip: false,
   };
 
   const rack: RoomObject = {

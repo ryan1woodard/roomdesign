@@ -146,8 +146,6 @@ export interface WallSegment {
   curveOffset: number;
 }
 
-export type SwingSide = 'left' | 'right';
-
 export interface WallOpening {
   id: string;
   wallId: string;
@@ -155,9 +153,6 @@ export interface WallOpening {
   /** Position along the wall from vertex a to b, 0..1. */
   t: number;
   width: number; // inches
-  swing: SwingSide;
-  /** Which face of the wall the door swings toward. */
-  flip: boolean;
 }
 
 export interface FloorPolygon {

@@ -1,4 +1,4 @@
-import { Trash2, Scissors, Merge, X, DoorOpen, RectangleHorizontal, Spline } from 'lucide-react';
+import { Trash2, Scissors, Merge, X, RectangleHorizontal, Spline } from 'lucide-react';
 import { useStore, useActiveRoom } from '../store/store';
 import { fromInches, toInches, UNIT_LABEL } from '../lib/units';
 import { canMergeAt, wallVector } from '../lib/walls';
@@ -188,31 +188,6 @@ export default function WallInspector() {
             <span className="num-unit">{u}</span>
           </div>
         </div>
-        {opening.kind === 'door' && (
-          <>
-            <div className="section">
-              <span className="label">Swing side</span>
-              <div className="seg">
-                <button
-                  className={opening.swing === 'left' ? 'active' : ''}
-                  onClick={() => updateOpening(opening.id, { swing: 'left' })}
-                >
-                  Left
-                </button>
-                <button
-                  className={opening.swing === 'right' ? 'active' : ''}
-                  onClick={() => updateOpening(opening.id, { swing: 'right' })}
-                >
-                  Right
-                </button>
-              </div>
-            </div>
-            <label className="check-row">
-              <input type="checkbox" checked={opening.flip} onChange={(e) => updateOpening(opening.id, { flip: e.target.checked })} />
-              <DoorOpen size={14} /> Flip swing direction
-            </label>
-          </>
-        )}
         {opening.kind === 'window' && (
           <p className="hint">
             <RectangleHorizontal size={13} style={{ verticalAlign: '-2px' }} /> Windows sit centered in the wall thickness.

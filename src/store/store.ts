@@ -965,7 +965,7 @@ export const useStore = create<AppState>()(
             const width = Math.min(kind === 'door' ? 32 : 30, length * 0.6);
             const halfT = width / 2 / length;
             const clampedT = Math.max(halfT + 0.02, Math.min(1 - halfT - 0.02, t));
-            const opening: WallOpening = { id, wallId, kind, t: clampedT, width, swing: 'right', flip: false };
+            const opening: WallOpening = { id, wallId, kind, t: clampedT, width };
             return { ...room, openings: { ...room.openings, [id]: opening } };
           }),
         );

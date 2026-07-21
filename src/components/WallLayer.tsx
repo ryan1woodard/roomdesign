@@ -1,8 +1,17 @@
-import { useMemo } from 'react';
-import { Group, Line, Circle, Rect, Arc, Text } from 'react-konva';
-import type { Room, WallSegment, WallOpening } from '../types';
+import { useMemo, useState } from 'react';
+import { Group, Line, Circle, Rect, Text } from 'react-konva';
+import type { Room, WallSegment, WallOpening, WallVertex } from '../types';
 import { useStore, type WallTool, type WallEntitySelection } from '../store/store';
-import { wallRenderSegments, wallPointAt, wallAngleAt, sampleWallPoints, projectPointOnWall } from '../lib/walls';
+import {
+  wallRenderSegments,
+  wallPointAt,
+  wallAngleAt,
+  sampleWallPoints,
+  projectPointOnWall,
+  computeWallOutwardNormals,
+  outwardShiftedEndpoints,
+  type Normal,
+} from '../lib/walls';
 import { formatLength } from '../lib/units';
 import type { Unit } from '../types';
 
@@ -26,6 +35,12 @@ function wallColor(wall: WallSegment, sel: WallEntitySelection) {
   return sel && sel.type === 'wall' && sel.id === wall.id ? WALL_COLOR_SELECTED : WALL_COLOR;
 }
 
+/** Build a tiny two-entry vertices map so the shared geometry helpers (which
+ * key off vertex id) can be reused with the outward-shifted render points. */
+function synthVertices(wall: WallSegment, pts: { a: WallVertex; b: WallVertex }): Record<string, WallVertex> {
+  return { [wall.a]: pts.a, [wall.b]: pts.b };
+}
+
 export default function WallLayer({ room, px, units, wallTool, wallSelection, wallCursorIn, visible, interactive }: Props) {
   const selectWallEntity = useStore((s) => s.selectWallEntity);
   const moveVertex = useStore((s) => s.moveVertex);
@@ -33,6 +48,7 @@ export default function WallLayer({ room, px, units, wallTool, wallSelection, wa
   const addOpening = useStore((s) => s.addOpening);
   const moveOpeningAlongWall = useStore((s) => s.moveOpeningAlongWall);
   const wallDraft = useStore((s) => s.wallDraft);
+  const [hoveredOpeningId, setHoveredOpeningId] = useState<string | null>(null);
 
   const openingsByWall = useMemo(() => {
     const map: Record<string, WallOpening[]> = {};
@@ -42,15 +58,51 @@ export default function WallLayer({ room, px, units, wallTool, wallSelection, wa
     return map;
   }, [room.openings]);
 
-  // Vertex joint radius = half the thickest connected wall, so corners look plugged.
-  const jointRadius = useMemo(() => {
-    const map: Record<string, number> = {};
-    for (const w of Object.values(room.walls)) {
-      map[w.a] = Math.max(map[w.a] ?? 0, w.thickness / 2);
-      map[w.b] = Math.max(map[w.b] ?? 0, w.thickness / 2);
+  // Walls are drawn as the *interior* face; thickness always extends outward
+  // from there, so measuring the inside of a room never changes when you
+  // adjust a wall's thickness.
+  const outwardNormals = useMemo(
+    () => computeWallOutwardNormals(room.vertices, room.walls, room.floors),
+    [room.vertices, room.walls, room.floors],
+  );
+  const renderEndpoints = useMemo(() => {
+    const map: Record<string, { a: WallVertex; b: WallVertex }> = {};
+    for (const wall of Object.values(room.walls)) {
+      map[wall.id] = outwardShiftedEndpoints(wall, room.vertices, outwardNormals);
     }
     return map;
-  }, [room.walls]);
+  }, [room.walls, room.vertices, outwardNormals]);
+
+  // Vertex joints: shift toward the average outward direction of connected
+  // walls so the corner visually meets the shifted wall rectangles; vertices
+  // with no outward-facing wall (open chains) stay centered as before.
+  const jointRender = useMemo(() => {
+    const radius: Record<string, number> = {};
+    const normalSum: Record<string, Normal> = {};
+    for (const w of Object.values(room.walls)) {
+      radius[w.a] = Math.max(radius[w.a] ?? 0, w.thickness / 2);
+      radius[w.b] = Math.max(radius[w.b] ?? 0, w.thickness / 2);
+      const n = outwardNormals[w.id];
+      if (n) {
+        for (const vid of [w.a, w.b]) {
+          const cur = normalSum[vid] ?? { x: 0, y: 0 };
+          normalSum[vid] = { x: cur.x + n.x, y: cur.y + n.y };
+        }
+      }
+    }
+    const map: Record<string, { x: number; y: number; r: number }> = {};
+    for (const v of Object.values(room.vertices)) {
+      const r = radius[v.id] ?? 0;
+      const sum = normalSum[v.id];
+      const len = sum ? Math.hypot(sum.x, sum.y) : 0;
+      if (sum && len > 0.001) {
+        map[v.id] = { x: v.x + (sum.x / len) * r, y: v.y + (sum.y / len) * r, r };
+      } else {
+        map[v.id] = { x: v.x, y: v.y, r };
+      }
+    }
+    return map;
+  }, [room.walls, room.vertices, outwardNormals]);
 
   if (!visible) return null;
 
@@ -80,16 +132,17 @@ export default function WallLayer({ room, px, units, wallTool, wallSelection, wa
       {/* Walls */}
       {Object.values(room.walls).map((wall) => {
         const openings = openingsByWall[wall.id] ?? [];
-        const segments = wallRenderSegments(wall, room.vertices, openings);
+        const rv = synthVertices(wall, renderEndpoints[wall.id]);
+        const segments = wallRenderSegments(wall, rv, openings);
         const color = wallColor(wall, wallSelection);
         return (
           <Group key={wall.id}>
             {segments.map((seg, i) => {
               const pts = wall.curved
-                ? sampleWallPoints(wall, room.vertices, seg.t0, seg.t1, 16).flatMap((p) => [p.x * px, p.y * px])
+                ? sampleWallPoints(wall, rv, seg.t0, seg.t1, 16).flatMap((p) => [p.x * px, p.y * px])
                 : (() => {
-                    const p0 = wallPointAt(wall, room.vertices, seg.t0);
-                    const p1 = wallPointAt(wall, room.vertices, seg.t1);
+                    const p0 = wallPointAt(wall, rv, seg.t0);
+                    const p1 = wallPointAt(wall, rv, seg.t1);
                     return [p0.x * px, p0.y * px, p1.x * px, p1.y * px];
                   })();
               return (
@@ -133,98 +186,111 @@ export default function WallLayer({ room, px, units, wallTool, wallSelection, wa
       })}
 
       {/* Vertex joints (visual plug at corners) */}
-      {Object.values(room.vertices).map((v) => (
-        <Circle
-          key={`joint-${v.id}`}
-          x={v.x * px}
-          y={v.y * px}
-          radius={(jointRadius[v.id] ?? 0) * px}
-          fill={WALL_COLOR}
-          listening={false}
-        />
-      ))}
+      {Object.values(room.vertices).map((v) => {
+        const j = jointRender[v.id];
+        return (
+          <Circle
+            key={`joint-${v.id}`}
+            x={j.x * px}
+            y={j.y * px}
+            radius={j.r * px}
+            fill={WALL_COLOR}
+            listening={false}
+          />
+        );
+      })}
 
       {/* Openings: doors and windows */}
       {Object.values(room.openings).map((o) => {
         const wall = room.walls[o.wallId];
         if (!wall) return null;
-        const pt = wallPointAt(wall, room.vertices, o.t);
-        const angleDeg = (wallAngleAt(wall, room.vertices, o.t) * 180) / Math.PI;
+        const rv = synthVertices(wall, renderEndpoints[wall.id]);
+        const pt = wallPointAt(wall, rv, o.t);
+        const angleDeg = (wallAngleAt(wall, rv, o.t) * 180) / Math.PI;
         const selected = wallSelection?.type === 'opening' && wallSelection.id === o.id;
+        const hovered = hoveredOpeningId === o.id;
         const wPx = o.width * px;
         const tPx = wall.thickness * px;
-        const swingSign = o.swing === 'left' ? -1 : 1;
-        const flipSign = o.flip ? -1 : 1;
 
         return (
-          <Group
-            key={o.id}
-            x={pt.x * px}
-            y={pt.y * px}
-            rotation={angleDeg}
-            listening={interactive}
-            draggable={interactive && wallTool === 'select'}
-            dragBoundFunc={(pos) => {
-              const worldPoint = { x: pos.x / px, y: pos.y / px };
-              const t = projectPointOnWall(wall, room.vertices, worldPoint);
-              const p = wallPointAt(wall, room.vertices, t);
-              return { x: p.x * px, y: p.y * px };
-            }}
-            onDragMove={(e) => {
-              const worldPoint = { x: e.target.x() / px, y: e.target.y() / px };
-              const t = projectPointOnWall(wall, room.vertices, worldPoint);
-              moveOpeningAlongWall(o.id, t);
-            }}
-            onMouseDown={(e) => {
-              if (!interactive || wallTool !== 'select') return;
-              e.cancelBubble = true;
-              selectWallEntity({ type: 'opening', id: o.id });
-            }}
-          >
-            {/* Gap fill (matches page background so the wall reads as cut open) */}
-            <Rect x={-wPx / 2} y={-tPx / 2} width={wPx} height={tPx} fill={BG} listening={false} />
+          <Group key={o.id}>
+            <Group
+              x={pt.x * px}
+              y={pt.y * px}
+              rotation={angleDeg}
+              listening
+              draggable={interactive && wallTool === 'select'}
+              dragBoundFunc={(pos) => {
+                const worldPoint = { x: pos.x / px, y: pos.y / px };
+                const t = projectPointOnWall(wall, room.vertices, worldPoint);
+                const p = wallPointAt(wall, rv, t);
+                return { x: p.x * px, y: p.y * px };
+              }}
+              onDragMove={(e) => {
+                const worldPoint = { x: e.target.x() / px, y: e.target.y() / px };
+                const t = projectPointOnWall(wall, room.vertices, worldPoint);
+                moveOpeningAlongWall(o.id, t);
+              }}
+              onMouseDown={(e) => {
+                if (!interactive || wallTool !== 'select') return;
+                e.cancelBubble = true;
+                selectWallEntity({ type: 'opening', id: o.id });
+              }}
+              onMouseEnter={() => setHoveredOpeningId(o.id)}
+              onMouseLeave={() => setHoveredOpeningId((cur) => (cur === o.id ? null : cur))}
+            >
+              {/* Gap fill (matches page background so the wall reads as cut open).
+                  Listening (not false) so hovering/clicking anywhere in the
+                  opening's footprint reaches the group, not just its thin
+                  border/centerline strokes. */}
+              <Rect x={-wPx / 2} y={-tPx / 2} width={wPx} height={tPx} fill={BG} />
 
-            {o.kind === 'window' ? (
-              <>
-                <Rect
-                  x={-wPx / 2}
-                  y={-tPx / 2}
-                  width={wPx}
-                  height={tPx}
-                  fill="rgba(120,180,255,0.22)"
-                  stroke={selected ? WALL_COLOR_SELECTED : '#6fa8ff'}
-                  strokeWidth={selected ? 2 : 1.5}
+              {o.kind === 'window' ? (
+                <>
+                  <Rect
+                    x={-wPx / 2}
+                    y={-tPx / 2}
+                    width={wPx}
+                    height={tPx}
+                    fill="rgba(120,180,255,0.22)"
+                    stroke={selected ? WALL_COLOR_SELECTED : '#6fa8ff'}
+                    strokeWidth={selected ? 2 : 1.5}
+                  />
+                  <Line points={[-wPx / 2, 0, wPx / 2, 0]} stroke="#6fa8ff" strokeWidth={1} />
+                </>
+              ) : (
+                <>
+                  <Rect
+                    x={-wPx / 2}
+                    y={-tPx / 2}
+                    width={wPx}
+                    height={tPx}
+                    stroke={selected ? WALL_COLOR_SELECTED : '#c9a876'}
+                    strokeWidth={selected ? 2 : 1.5}
+                  />
+                  <Line points={[-wPx / 2, 0, wPx / 2, 0]} stroke="#c9a876" strokeWidth={1} dash={[5, 4]} />
+                </>
+              )}
+            </Group>
+
+            {/* Hover tooltip — upright regardless of the wall's angle. */}
+            {hovered && (
+              <Group x={pt.x * px} y={pt.y * px - tPx / 2 - 24} listening={false}>
+                <Rect x={-46} y={-11} width={92} height={22} cornerRadius={5} fill="rgba(10,13,20,0.9)" stroke="rgba(255,255,255,0.12)" strokeWidth={1} />
+                <Text
+                  x={-46}
+                  y={-11}
+                  width={92}
+                  height={22}
+                  align="center"
+                  verticalAlign="middle"
+                  text={`${o.kind === 'door' ? 'Door' : 'Window'} · ${formatLength(o.width, units)}`}
+                  fontSize={11}
+                  fontFamily="Inter, sans-serif"
+                  fontStyle="600"
+                  fill="#eef1f7"
                 />
-                <Line points={[-wPx / 2, 0, wPx / 2, 0]} stroke="#6fa8ff" strokeWidth={1} />
-              </>
-            ) : (
-              <>
-                {/* Door leaf + swing arc */}
-                <Line
-                  points={[swingSign * -wPx / 2, 0, swingSign * -wPx / 2, flipSign * wPx]}
-                  stroke={selected ? WALL_COLOR_SELECTED : '#c9a876'}
-                  strokeWidth={2}
-                />
-                <Arc
-                  x={swingSign * -wPx / 2}
-                  y={0}
-                  innerRadius={wPx}
-                  outerRadius={wPx}
-                  angle={90}
-                  rotation={flipSign > 0 ? (swingSign > 0 ? 0 : -90) : swingSign > 0 ? -90 : 180}
-                  stroke={selected ? WALL_COLOR_SELECTED : 'rgba(201,168,118,0.6)'}
-                  strokeWidth={1}
-                  dash={[4, 3]}
-                />
-                <Rect
-                  x={-wPx / 2}
-                  y={-tPx / 2}
-                  width={wPx}
-                  height={tPx}
-                  stroke={selected ? WALL_COLOR_SELECTED : 'transparent'}
-                  strokeWidth={selected ? 2 : 0}
-                />
-              </>
+              </Group>
             )}
           </Group>
         );

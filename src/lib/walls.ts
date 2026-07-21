@@ -244,6 +244,81 @@ export function computeFloors(vertices: Record<string, WallVertex>, walls: Recor
   return floors;
 }
 
+export interface Normal {
+  x: number;
+  y: number;
+}
+
+/**
+ * For every wall that belongs to exactly one closed floor loop, compute the
+ * outward-pointing unit normal (away from the room interior).
+ *
+ * Vertices are treated as the *interior* face of the wall — the boundary you'd
+ * get by measuring the inside of the room — so walls not part of any loop
+ * (open chains, mid-draw) have no defined interior side and are omitted; the
+ * renderer falls back to a centered stroke for those.
+ */
+export function computeWallOutwardNormals(
+  vertices: Record<string, WallVertex>,
+  walls: Record<string, WallSegment>,
+  floors: FloorPolygon[],
+): Record<string, Normal> {
+  const result: Record<string, Normal> = {};
+
+  for (const floor of floors) {
+    const ids = floor.vertexIds;
+    const n = ids.length;
+    if (n < 3) continue;
+
+    // Shoelace sum: its sign tells us, consistently, which side of each
+    // directed edge (in this same loop order) is the interior.
+    let area = 0;
+    for (let i = 0; i < n; i++) {
+      const p0 = vertices[ids[i]];
+      const p1 = vertices[ids[(i + 1) % n]];
+      if (!p0 || !p1) continue;
+      area += p0.x * p1.y - p1.x * p0.y;
+    }
+    const positive = area > 0;
+
+    for (let i = 0; i < n; i++) {
+      const aId = ids[i];
+      const bId = ids[(i + 1) % n];
+      const a = vertices[aId];
+      const b = vertices[bId];
+      if (!a || !b) continue;
+      const wall = Object.values(walls).find((w) => (w.a === aId && w.b === bId) || (w.a === bId && w.b === aId));
+      if (!wall) continue;
+
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const len = Math.hypot(dx, dy) || 1;
+      const leftNormal: Normal = { x: -dy / len, y: dx / len };
+      const inward = positive ? leftNormal : { x: -leftNormal.x, y: -leftNormal.y };
+      result[wall.id] = { x: -inward.x, y: -inward.y };
+    }
+  }
+
+  return result;
+}
+
+/** Shift a wall's two endpoints outward by half its thickness, for rendering only. */
+export function outwardShiftedEndpoints(
+  wall: WallSegment,
+  vertices: Record<string, WallVertex>,
+  outwardNormals: Record<string, Normal>,
+): { a: WallVertex; b: WallVertex } {
+  const a = vertices[wall.a];
+  const b = vertices[wall.b];
+  const n = outwardNormals[wall.id];
+  if (!n) return { a, b };
+  const half = wall.thickness / 2;
+  return {
+    a: { ...a, x: a.x + n.x * half, y: a.y + n.y * half },
+    b: { ...b, x: b.x + n.x * half, y: b.y + n.y * half },
+  };
+}
+
 /** Insert a new vertex into a wall at parameter t, splitting it into two walls. */
 export function splitWall(
   wall: WallSegment,
