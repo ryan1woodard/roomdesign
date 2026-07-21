@@ -97,6 +97,11 @@ interface PersistedState extends Doc {
 export type WallTool = 'select' | 'draw' | 'door' | 'window';
 export type WallEntitySelection = { type: 'wall' | 'vertex' | 'opening'; id: string } | null;
 
+/** Design-mode object interaction tool. 'select' shows resize handles only;
+ * 'move'/'rotate' swap in the dedicated move/rotate gizmo — the only ways
+ * to reposition or rotate an object (there is no more free drag). */
+export type ObjectTool = 'select' | 'move' | 'rotate';
+
 interface Clipboard {
   objects: RoomObject[];
   items: Item[];
@@ -137,6 +142,7 @@ interface AppState extends Doc {
   wallTool: WallTool;
   wallDraft: { startVertexId: string; lastVertexId: string } | null;
   wallSelection: WallEntitySelection;
+  objectTool: ObjectTool;
   fitToViewToken: number;
 
   // History (not persisted)
@@ -154,6 +160,7 @@ interface AppState extends Doc {
   setWallThicknessDefault: (v: number) => void;
   toggleWallAngleSnap: () => void;
   setMode: (mode: AppMode) => void;
+  setObjectTool: (tool: ObjectTool) => void;
 
   // User / session
   loginUser: (name: string, email: string) => void;
@@ -466,6 +473,7 @@ export const useStore = create<AppState>()(
       wallTool: 'select',
       wallDraft: null,
       wallSelection: null,
+      objectTool: 'select',
       fitToViewToken: 0,
 
       past: [],
@@ -488,6 +496,7 @@ export const useStore = create<AppState>()(
           wallSelection: null,
           wallDraft: null,
           wallTool: 'select',
+          objectTool: 'select',
           openLocation: mode === 'design' ? null : s.openLocation,
           pickerObjectId: mode === 'design' ? null : s.pickerObjectId,
         })),
@@ -589,6 +598,7 @@ export const useStore = create<AppState>()(
             wallSelection: null,
             wallDraft: null,
             wallTool: 'select',
+            objectTool: 'select',
             contextMenu: null,
           };
         }),
@@ -1117,6 +1127,7 @@ export const useStore = create<AppState>()(
       closeContextMenu: () => set({ contextMenu: null }),
 
       setWallTool: (tool) => set({ wallTool: tool, wallDraft: tool === 'draw' ? get().wallDraft : null }),
+      setObjectTool: (tool) => set({ objectTool: tool }),
       commitWallPoint: (point) =>
         set((s) => {
           const room = s.rooms[s.activeRoomId];

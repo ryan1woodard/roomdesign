@@ -5,6 +5,7 @@ import { useStore, useActiveRoom } from '../store/store';
 import { objectsMatchingSearch } from '../lib/selectors';
 import { computeVisibleBounds } from '../lib/bounds';
 import ObjectNode from './ObjectNode';
+import TransformTools from './TransformTools';
 import WallLayer from './WallLayer';
 import Minimap from './Minimap';
 import StatusBar from './StatusBar';
@@ -53,6 +54,7 @@ export default function RoomCanvas() {
   const search = useStore((s) => s.search);
   const wallTool = useStore((s) => s.wallTool);
   const wallSelection = useStore((s) => s.wallSelection);
+  const objectTool = useStore((s) => s.objectTool);
   const fitToViewToken = useStore((s) => s.fitToViewToken);
 
   const setSelection = useStore((s) => s.setSelection);
@@ -113,18 +115,20 @@ export default function RoomCanvas() {
     else nodeMap.current.delete(id);
   }, []);
 
-  // Attach transformer to a single selected object.
+  // Attach transformer (resize handles) to a single selected object — only
+  // in the default 'select' tool, since 'move'/'rotate' show their own
+  // dedicated gizmo instead.
   useEffect(() => {
     const tr = trRef.current;
     if (!tr) return;
-    if (selection.length === 1 && !isWallMode) {
+    if (selection.length === 1 && !isWallMode && objectTool === 'select') {
       const node = nodeMap.current.get(selection[0]);
       tr.nodes(node ? [node] : []);
     } else {
       tr.nodes([]);
     }
     tr.getLayer()?.batchDraw();
-  }, [selection, objects, isWallMode]);
+  }, [selection, objects, isWallMode, objectTool]);
 
   const worldPointFromStage = useCallback((): { x: number; y: number } | null => {
     const stage = stageRef.current;
@@ -181,7 +185,6 @@ export default function RoomCanvas() {
     updateObject(obj.id, {
       width: Math.round(newW),
       height: Math.round(newH),
-      rotation: Math.round(node.rotation()),
     });
   };
 
@@ -386,7 +389,6 @@ export default function RoomCanvas() {
               dimmed={search.trim().length > 0 && !searchHits.has(obj.id)}
               counts={counts[obj.id] ?? {}}
               showDetail={showDetail}
-              snapIn={snapIn}
               zoomScale={cam.scale}
               showAllLabels={settings.showAllLabels}
               mode={mode}
@@ -394,23 +396,32 @@ export default function RoomCanvas() {
               onSelect={handleObjSelect}
               onOpenCell={(id, key) => mode === 'inventory' && open({ objectId: id, cellKey: key })}
               onOpenPicker={(id) => mode === 'inventory' && openPicker(id)}
-              onDragMove={(id, x, y) => updateObject(id, { x, y })}
-              onDragEnd={(id, x, y) => updateObject(id, { x, y })}
               onContextMenu={(id, x, y) => openContextMenu(id, x, y)}
             />
           ))}
-          {mode === 'design' && !isWallMode && (
+          {mode === 'design' && !isWallMode && objectTool === 'select' && (
             <Transformer
               ref={trRef}
-              rotateEnabled
+              rotateEnabled={false}
               keepRatio={false}
               borderStroke="#4f8cff"
               anchorStroke="#4f8cff"
               anchorFill="#12151d"
               anchorSize={9}
-              rotateAnchorOffset={22}
               onTransformEnd={onTransformEnd}
               boundBoxFunc={(oldBox, newBox) => (newBox.width < 8 || newBox.height < 8 ? oldBox : newBox)}
+            />
+          )}
+          {mode === 'design' && !isWallMode && objectTool !== 'select' && selection.length === 1 && objects[selection[0]] && (
+            <TransformTools
+              key={selection[0]}
+              obj={objects[selection[0]]}
+              px={PX_PER_IN}
+              zoomScale={cam.scale}
+              tool={objectTool}
+              snapIn={snapIn}
+              units={settings.units}
+              onUpdate={(patch) => updateObject(selection[0], patch)}
             />
           )}
         </Layer>

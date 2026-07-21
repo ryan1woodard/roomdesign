@@ -857,35 +857,6 @@
   flex-wrap: wrap;
   gap: 4px;
 }
-/* Floating item hover tooltip — rendered via portal, positioned in fixed
-   viewport coordinates by ItemCard so it can flip above/below and never
-   gets clipped by a scrolling drawer/shelf container. */
-.item-hover-tip {
-  position: fixed;
-  width: 200px;
-  border-radius: var(--r-md);
-  padding: 10px 12px;
-  pointer-events: none;
-  transition: opacity 0.14s ease;
-  z-index: 200;
-}
-.iht-name {
-  font-weight: 700;
-  font-size: 13px;
-  margin-bottom: 4px;
-}
-.iht-qty {
-  font-size: 12px;
-  color: var(--text-1);
-  line-height: 1.5;
-}
-.iht-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 6px;
-}
-
 /* Move rail */
 .move-rail {
   border-top: 1px solid var(--stroke);

@@ -18,17 +18,15 @@ interface Props {
   dimmed: boolean;
   counts: Record<string, number>;
   showDetail: boolean; // zoom-dependent: show cell labels/counts
-  snapIn: number | null; // grid snap step in inches, or null
   zoomScale: number; // current stage zoom (cam.scale)
   showAllLabels: boolean;
-  /** Design Mode moves/resizes/rotates furniture; Inventory Mode opens it instead. */
+  /** Design Mode resizes furniture (move/rotate happen via the dedicated
+   * tools, not by dragging); Inventory Mode opens it instead. */
   mode: AppMode;
   registerNode: (id: string, node: Konva.Group | null) => void;
   onSelect: (id: string, additive: boolean) => void;
   onOpenCell: (id: string, cellKey: string) => void;
   onOpenPicker: (id: string) => void;
-  onDragMove: (id: string, x: number, y: number) => void;
-  onDragEnd: (id: string, x: number, y: number) => void;
   onContextMenu: (id: string, x: number, y: number) => void;
 }
 
@@ -59,7 +57,6 @@ export default function ObjectNode({
   dimmed,
   counts,
   showDetail,
-  snapIn,
   zoomScale,
   showAllLabels,
   mode,
@@ -67,8 +64,6 @@ export default function ObjectNode({
   onSelect,
   onOpenCell,
   onOpenPicker,
-  onDragMove,
-  onDragEnd,
   onContextMenu,
 }: Props) {
   const groupRef = useRef<Konva.Group>(null);
@@ -157,7 +152,6 @@ export default function ObjectNode({
         offsetX={w / 2}
         offsetY={h / 2}
         rotation={obj.rotation}
-        draggable={mode === 'design'}
         opacity={dimmed ? 0.35 : 1}
         onMouseEnter={() => {
           hoverRef.current = true;
@@ -193,28 +187,6 @@ export default function ObjectNode({
           if (mode !== 'inventory') return;
           if (isContainer) onOpenPicker(obj.id);
           else onOpenCell(obj.id, 'surface');
-        }}
-        onDragMove={() => {
-          const n = groupRef.current!;
-          let tlx = n.x() / px - obj.width / 2;
-          let tly = n.y() / px - obj.height / 2;
-          if (snapIn) {
-            tlx = Math.round(tlx / snapIn) * snapIn;
-            tly = Math.round(tly / snapIn) * snapIn;
-            n.x((tlx + obj.width / 2) * px);
-            n.y((tly + obj.height / 2) * px);
-          }
-          onDragMove(obj.id, tlx, tly);
-        }}
-        onDragEnd={() => {
-          const n = groupRef.current!;
-          let tlx = n.x() / px - obj.width / 2;
-          let tly = n.y() / px - obj.height / 2;
-          if (snapIn) {
-            tlx = Math.round(tlx / snapIn) * snapIn;
-            tly = Math.round(tly / snapIn) * snapIn;
-          }
-          onDragEnd(obj.id, tlx, tly);
         }}
       >
         {/* search-hit glow ring */}

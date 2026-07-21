@@ -1,4 +1,5 @@
-import { Copy, Trash2, DoorOpen, Boxes, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Copy, Trash2, DoorOpen, Boxes, X, Move, RotateCw } from 'lucide-react';
 import { useStore, useActiveRoom } from '../store/store';
 import { fromInches, toInches, UNIT_LABEL } from '../lib/units';
 import type { RoomObject } from '../types';
@@ -51,6 +52,18 @@ export default function Inspector() {
   const open = useStore((s) => s.open);
   const openPicker = useStore((s) => s.openPicker);
   const clearSelection = useStore((s) => s.clearSelection);
+  const objectTool = useStore((s) => s.objectTool);
+
+  const selectedId = selection.length === 1 ? selection[0] : null;
+  const [moveX, setMoveX] = useState(0);
+  const [moveY, setMoveY] = useState(0);
+
+  // A fresh selection (or switching away and back) should never carry over
+  // a typed-but-unapplied nudge amount from the previously selected object.
+  useEffect(() => {
+    setMoveX(0);
+    setMoveY(0);
+  }, [selectedId]);
 
   if (selection.length !== 1) {
     if (selection.length > 1) {
@@ -129,18 +142,51 @@ export default function Inspector() {
               />
             </div>
 
+            {objectTool === 'move' && (
+              <div className="section">
+                <span className="label">
+                  <Move size={12} style={{ verticalAlign: '-2px' }} /> Move by
+                </span>
+                <div className="grid-2">
+                  <NumberField label="X" value={moveX} unitLabel={u} onCommit={setMoveX} />
+                  <NumberField label="Y" value={moveY} unitLabel={u} onCommit={setMoveY} />
+                </div>
+                <button
+                  className="btn primary"
+                  disabled={moveX === 0 && moveY === 0}
+                  onClick={() => {
+                    update(obj.id, { x: obj.x + toInches(moveX, units), y: obj.y + toInches(moveY, units) });
+                    setMoveX(0);
+                    setMoveY(0);
+                  }}
+                >
+                  Apply move
+                </button>
+                <p className="hint">Drag the move handles on the canvas, or type an exact offset here.</p>
+              </div>
+            )}
+
+            {objectTool === 'rotate' && (
+              <div className="section">
+                <span className="label">
+                  <RotateCw size={12} style={{ verticalAlign: '-2px' }} /> Rotate to
+                </span>
+                <NumberField
+                  label="Angle"
+                  value={obj.rotation}
+                  unitLabel="°"
+                  onCommit={(v) => update(obj.id, { rotation: ((v % 360) + 360) % 360 })}
+                />
+                <p className="hint">Drag the rotate handle on the canvas, or type an exact angle here.</p>
+              </div>
+            )}
+
             <div className="section">
               <span className="label">Dimensions</span>
               <div className="grid-2">
                 <NumberField label="Width" value={dispLen(obj.width)} unitLabel={u} onCommit={setLen('width')} />
                 <NumberField label="Depth" value={dispLen(obj.height)} unitLabel={u} onCommit={setLen('height')} />
                 <NumberField label="Height" value={dispLen(obj.depthIn)} unitLabel={u} onCommit={setLen('depthIn')} />
-                <NumberField
-                  label="Rotation"
-                  value={obj.rotation}
-                  unitLabel="°"
-                  onCommit={(v) => update(obj.id, { rotation: v })}
-                />
               </div>
             </div>
 

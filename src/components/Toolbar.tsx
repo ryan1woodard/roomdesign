@@ -15,6 +15,8 @@ import {
   DoorOpen,
   RectangleHorizontal,
   History,
+  Move,
+  RotateCw,
 } from 'lucide-react';
 import { useStore, useActiveRoom } from '../store/store';
 import { ALL_UNITS, UNIT_LABEL } from '../lib/units';
@@ -51,6 +53,8 @@ export default function Toolbar() {
   const requestFitToView = useStore((s) => s.requestFitToView);
   const wallTool = useStore((s) => s.wallTool);
   const setWallTool = useStore((s) => s.setWallTool);
+  const objectTool = useStore((s) => s.objectTool);
+  const setObjectTool = useStore((s) => s.setObjectTool);
   const openLogViewer = useStore((s) => s.openLogViewer);
 
   const mode = settings.mode;
@@ -82,11 +86,28 @@ export default function Toolbar() {
           </button>
         ))
       ) : (
-        TOOLS.map((t) => (
-          <button key={t.kind} className="btn icon" title={t.label} onClick={() => addObject(t.kind)}>
-            {t.icon}
+        <>
+          {TOOLS.map((t) => (
+            <button key={t.kind} className="btn icon" title={t.label} onClick={() => addObject(t.kind)}>
+              {t.icon}
+            </button>
+          ))}
+          <div className="divider-v" />
+          <button
+            className={`btn icon ${objectTool === 'move' ? 'active' : ''}`}
+            title="Move tool — drag the arrows to move the selected object by a precise amount"
+            onClick={() => setObjectTool(objectTool === 'move' ? 'select' : 'move')}
+          >
+            <Move size={17} />
           </button>
-        ))
+          <button
+            className={`btn icon ${objectTool === 'rotate' ? 'active' : ''}`}
+            title="Rotate tool — drag the dial to rotate the selected object by a precise amount"
+            onClick={() => setObjectTool(objectTool === 'rotate' ? 'select' : 'rotate')}
+          >
+            <RotateCw size={17} />
+          </button>
+        </>
       )}
 
       <div className="divider-v" />
