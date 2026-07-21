@@ -1,17 +1,6 @@
-import { useMemo, useRef, useState } from 'react';
-import {
-  FolderTree,
-  Plus,
-  ChevronUp,
-  ChevronDown,
-  Copy,
-  Trash2,
-  Building2,
-  ImagePlus,
-  X,
-  RotateCcw,
-} from 'lucide-react';
-import { useStore, useActiveRoom } from '../store/store';
+import { useMemo, useState } from 'react';
+import { FolderTree, Plus, ChevronUp, ChevronDown, Copy, Trash2 } from 'lucide-react';
+import { useStore } from '../store/store';
 import { computeVisibleBounds } from '../lib/bounds';
 import type { Room } from '../types';
 
@@ -58,31 +47,17 @@ export default function RoomNavigator() {
   const rooms = useStore((s) => s.rooms);
   const roomOrder = useStore((s) => s.roomOrder);
   const activeRoomId = useStore((s) => s.activeRoomId);
-  const activeRoom = useActiveRoom();
   const addRoom = useStore((s) => s.addRoom);
   const renameRoom = useStore((s) => s.renameRoom);
   const deleteRoom = useStore((s) => s.deleteRoom);
   const duplicateRoom = useStore((s) => s.duplicateRoom);
   const reorderRoom = useStore((s) => s.reorderRoom);
   const setActiveRoom = useStore((s) => s.setActiveRoom);
-  const setRoomNotes = useStore((s) => s.setRoomNotes);
-  const setBlueprint = useStore((s) => s.setBlueprint);
-  const setBlueprintOpacity = useStore((s) => s.setBlueprintOpacity);
-  const clearBlueprint = useStore((s) => s.clearBlueprint);
-  const restoreFromRecovery = useStore((s) => s.restoreFromRecovery);
   const mode = useStore((s) => s.settings.mode);
   const isDesign = mode === 'design';
 
   const [collapsed, setCollapsed] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
-  const [showProps, setShowProps] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
-
-  const onBlueprintFile = (f: File) => {
-    const reader = new FileReader();
-    reader.onload = () => setBlueprint(String(reader.result));
-    reader.readAsDataURL(f);
-  };
 
   return (
     <div className="room-nav glass">
@@ -104,8 +79,7 @@ export default function RoomNavigator() {
       </div>
 
       {!collapsed && (
-        <>
-          <div className="room-list">
+        <div className="room-list">
             {roomOrder.map((id, idx) => {
               const r = rooms[id];
               const active = id === activeRoomId;
@@ -197,78 +171,7 @@ export default function RoomNavigator() {
                 </div>
               );
             })}
-          </div>
-
-          <button className="panel-subhead" onClick={() => setShowProps((v) => !v)}>
-            <Building2 size={13} /> Room properties
-          </button>
-
-          {showProps && (
-            <div className="room-props">
-              <label className="label">Notes</label>
-              {isDesign ? (
-                <textarea
-                  className="field"
-                  rows={2}
-                  value={activeRoom.notes}
-                  placeholder="Optional notes about this room…"
-                  onChange={(e) => setRoomNotes(e.target.value)}
-                />
-              ) : (
-                <p className="hint">{activeRoom.notes || 'No notes.'}</p>
-              )}
-              {isDesign && (
-                <>
-                  <label className="label">Blueprint reference</label>
-                  {activeRoom.blueprint ? (
-                    <>
-                      <div className="blueprint-row">
-                        <span className="hint">Image loaded</span>
-                        <button className="btn icon danger" onClick={clearBlueprint}>
-                          <X size={13} />
-                        </button>
-                      </div>
-                      <input
-                        className="field"
-                        type="range"
-                        min={0.1}
-                        max={1}
-                        step={0.05}
-                        value={activeRoom.blueprint.opacity}
-                        onChange={(e) => setBlueprintOpacity(parseFloat(e.target.value))}
-                      />
-                    </>
-                  ) : (
-                    <button className="btn" onClick={() => fileRef.current?.click()}>
-                      <ImagePlus size={14} /> Import floor plan image
-                    </button>
-                  )}
-                  <input
-                    ref={fileRef}
-                    type="file"
-                    accept="image/*"
-                    hidden
-                    onChange={(e) => e.target.files?.[0] && onBlueprintFile(e.target.files[0])}
-                  />
-                </>
-              )}
-            </div>
-          )}
-
-          {isDesign && (
-            <button
-              className="panel-subhead"
-              onClick={async () => {
-                if (confirm('Restore the most recent auto-save recovery snapshot? This replaces your current project.')) {
-                  const ok = await restoreFromRecovery();
-                  if (!ok) alert('No recovery snapshot was found yet.');
-                }
-              }}
-            >
-              <RotateCcw size={13} /> Restore last snapshot
-            </button>
-          )}
-        </>
+        </div>
       )}
     </div>
   );

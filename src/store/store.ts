@@ -39,8 +39,6 @@ import { cellName } from '../lib/shelf';
 
 localforage.config({ name: 'srs-lab-designer', storeName: 'state' });
 
-const RECOVERY_KEY = 'srs-lab-designer-recovery';
-
 /**
  * Save-status bookkeeping deliberately lives in its own tiny store, NOT in
  * the persisted `useStore`. Zustand's `persist` middleware re-triggers a
@@ -152,7 +150,6 @@ interface AppState extends Doc {
   setUnit: (u: Settings['units']) => void;
   toggleGrid: () => void;
   toggleSnap: () => void;
-  toggleSpaceAwareness: () => void;
   toggleShowAllLabels: () => void;
   setWallThicknessDefault: (v: number) => void;
   toggleWallAngleSnap: () => void;
@@ -179,11 +176,7 @@ interface AppState extends Doc {
   reorderRoom: (id: string, dir: -1 | 1) => void;
   setActiveRoom: (id: string) => void;
   setRoomCamera: (id: string, camera: CameraState) => void;
-  setRoomNotes: (notes: string) => void;
   setFloorStyle: (color: string, opacity: number) => void;
-  setBlueprint: (image: string) => void;
-  setBlueprintOpacity: (opacity: number) => void;
-  clearBlueprint: () => void;
 
   // Layer actions
   addLayer: (name?: string) => void;
@@ -199,7 +192,6 @@ interface AppState extends Doc {
   removeObject: (id: string) => void;
   duplicateObject: (id: string) => string | null;
   setStorage: (id: string, storage: Storage) => void;
-  moveObjectToRoom: (objectId: string, toRoomId: string) => void;
 
   // Selection & clipboard
   setSelection: (ids: string[]) => void;
@@ -228,6 +220,10 @@ interface AppState extends Doc {
 
   // Navigation
   open: (loc: LocationRef) => void;
+  /** Opens a drawer from within the compartment picker, leaving the picker's
+   * state intact so "Back" returns to compartment selection instead of
+   * jumping straight to the room. */
+  openFromPicker: (loc: LocationRef) => void;
   openPicker: (id: string | null) => void;
   closeDrawer: () => void;
   inspectItem: (id: string | null) => void;
@@ -257,7 +253,6 @@ interface AppState extends Doc {
   undo: () => void;
   redo: () => void;
 
-  restoreFromRecovery: () => Promise<boolean>;
   requestFitToView: () => void;
 }
 
@@ -351,7 +346,6 @@ function emptyRoom(name: string): Room {
     id: `room-${nanoid(8)}`,
     name,
     order: 0,
-    notes: '',
     objects: {},
     items: {},
     layers,
@@ -363,7 +357,6 @@ function emptyRoom(name: string): Room {
     floorColor: '#1c2233',
     floorOpacity: 1,
     camera: { x: 160, y: 140, scale: 1 },
-    blueprint: null,
   };
 }
 
@@ -423,7 +416,6 @@ function cloneRoomWithNewIds(src: Room, newName: string): Room {
     id: roomId,
     name: newName,
     order: src.order,
-    notes: src.notes,
     objects,
     items,
     layers,
@@ -435,7 +427,6 @@ function cloneRoomWithNewIds(src: Room, newName: string): Room {
     floorColor: src.floorColor,
     floorOpacity: src.floorOpacity,
     camera: { ...src.camera },
-    blueprint: src.blueprint ? { ...src.blueprint } : null,
   };
 }
 
@@ -447,7 +438,6 @@ export const useStore = create<AppState>()(
         units: 'in',
         gridVisible: true,
         snapToGrid: true,
-        spaceAwareness: false,
         showAllLabels: false,
         wallThickness: 6,
         wallAngleSnap: true,
@@ -487,8 +477,6 @@ export const useStore = create<AppState>()(
       setUnit: (units) => set((s) => ({ settings: { ...s.settings, units } })),
       toggleGrid: () => set((s) => ({ settings: { ...s.settings, gridVisible: !s.settings.gridVisible } })),
       toggleSnap: () => set((s) => ({ settings: { ...s.settings, snapToGrid: !s.settings.snapToGrid } })),
-      toggleSpaceAwareness: () =>
-        set((s) => ({ settings: { ...s.settings, spaceAwareness: !s.settings.spaceAwareness } })),
       toggleShowAllLabels: () => set((s) => ({ settings: { ...s.settings, showAllLabels: !s.settings.showAllLabels } })),
       setWallThicknessDefault: (v) => set((s) => ({ settings: { ...s.settings, wallThickness: Math.max(1, v) } })),
       toggleWallAngleSnap: () => set((s) => ({ settings: { ...s.settings, wallAngleSnap: !s.settings.wallAngleSnap } })),
@@ -610,19 +598,8 @@ export const useStore = create<AppState>()(
           if (!room) return {};
           return { rooms: { ...s.rooms, [id]: { ...room, camera } } };
         }),
-      setRoomNotes: (notes) =>
-        set((s) => mutateActiveRoom(s, 'room-notes', (room) => ({ ...room, notes }))),
       setFloorStyle: (color, opacity) =>
         set((s) => mutateActiveRoom(s, 'floor-style', (room) => ({ ...room, floorColor: color, floorOpacity: opacity }))),
-      setBlueprint: (image) =>
-        set((s) => mutateActiveRoom(s, 'blueprint', (room) => ({ ...room, blueprint: { image, opacity: 0.5 } }))),
-      setBlueprintOpacity: (opacity) =>
-        set((s) =>
-          mutateActiveRoom(s, 'blueprint-opacity', (room) =>
-            room.blueprint ? { ...room, blueprint: { ...room.blueprint, opacity } } : room,
-          ),
-        ),
-      clearBlueprint: () => set((s) => mutateActiveRoom(s, 'blueprint-clear', (room) => ({ ...room, blueprint: null }))),
 
       addLayer: (name) =>
         set((s) =>
@@ -789,43 +766,6 @@ export const useStore = create<AppState>()(
             return { ...room, objects: { ...room.objects, [id]: { ...cur, storage } } };
           }),
         ),
-      moveObjectToRoom: (objectId, toRoomId) =>
-        set((s) => {
-          const fromRoom = s.rooms[s.activeRoomId];
-          const toRoom = s.rooms[toRoomId];
-          if (!fromRoom || !toRoom || fromRoom.id === toRoomId) return {};
-          const obj = fromRoom.objects[objectId];
-          if (!obj) return {};
-          const fallbackLayer = toRoom.layers.find((l) => l.kind === 'object')?.id ?? toRoom.activeLayerId;
-          const movedObj: RoomObject = { ...obj, layerId: fallbackLayer };
-
-          const movedItems: Record<string, Item> = {};
-          const remainingItems = { ...fromRoom.items };
-          for (const it of Object.values(fromRoom.items)) {
-            if (it.objectId === objectId) {
-              movedItems[it.id] = it;
-              delete remainingItems[it.id];
-            }
-          }
-
-          const newFromObjects = { ...fromRoom.objects };
-          delete newFromObjects[objectId];
-
-          const newFromRoom: Room = { ...fromRoom, objects: newFromObjects, items: remainingItems };
-          const newToRoom: Room = {
-            ...toRoom,
-            objects: { ...toRoom.objects, [objectId]: movedObj },
-            items: { ...toRoom.items, ...movedItems },
-          };
-
-          return {
-            ...withHistory(s, 'move-obj-room'),
-            rooms: { ...s.rooms, [newFromRoom.id]: newFromRoom, [newToRoom.id]: newToRoom },
-            selection: s.selection.filter((sid) => sid !== objectId),
-            contextMenu: null,
-          };
-        }),
-
       setSelection: (ids) => set({ selection: ids }),
       clearSelection: () => set({ selection: [] }),
       copySelection: () =>
@@ -1167,6 +1107,7 @@ export const useStore = create<AppState>()(
         }),
 
       open: (loc) => set({ openLocation: loc, pickerObjectId: null, inspectItemId: null }),
+      openFromPicker: (loc) => set({ openLocation: loc, inspectItemId: null }),
       openPicker: (id) => set({ pickerObjectId: id }),
       closeDrawer: () => set({ openLocation: null, inspectItemId: null }),
       inspectItem: (id) => set({ inspectItemId: id }),
@@ -1394,21 +1335,6 @@ export const useStore = create<AppState>()(
           };
         }),
 
-      restoreFromRecovery: async () => {
-        const raw = await localforage.getItem<string>(RECOVERY_KEY);
-        if (!raw) return false;
-        try {
-          const parsed = JSON.parse(raw) as { state: PersistedState };
-          set((s) => ({
-            ...withHistory(s, 'restore-recovery'),
-            ...parsed.state,
-          }));
-          return true;
-        } catch {
-          return false;
-        }
-      },
-
       requestFitToView: () => set({ fitToViewToken: Date.now() }),
     }),
     {
@@ -1451,27 +1377,3 @@ useStore.subscribe((state) => {
     if (useSaveStore.getState().saveStatus !== 'saving') useSaveStore.setState({ saveStatus: 'unsaved' });
   }
 });
-
-// Lightweight periodic recovery snapshot, independent of the main persisted
-// key, so the project can be restored even if the primary write is interrupted.
-let lastRecoveryRev = -1;
-setInterval(() => {
-  const s = useStore.getState();
-  if (s._rev === lastRecoveryRev) return;
-  lastRecoveryRev = s._rev;
-  const payload = {
-    state: {
-      rooms: s.rooms,
-      roomOrder: s.roomOrder,
-      tags: s.tags,
-      activeRoomId: s.activeRoomId,
-      settings: s.settings,
-      currentUser: s.currentUser,
-      knownUsers: s.knownUsers,
-      projectMeta: s.projectMeta,
-      activityLog: s.activityLog,
-    } satisfies PersistedState,
-    savedAt: Date.now(),
-  };
-  localforage.setItem(RECOVERY_KEY, JSON.stringify(payload)).catch(() => {});
-}, 45000);

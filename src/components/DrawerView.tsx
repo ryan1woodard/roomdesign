@@ -23,8 +23,6 @@ export default function DrawerView() {
   const objects = room.objects;
   const items = room.items;
   const tags = useStore((s) => s.tags);
-  const units = useStore((s) => s.settings.units);
-  const spaceAwareness = useStore((s) => s.settings.spaceAwareness);
   const sortMode = useStore((s) => s.sortMode);
   const search = useStore((s) => s.search);
   const setSortMode = useStore((s) => s.setSortMode);
@@ -45,24 +43,6 @@ export default function DrawerView() {
 
   const kind = obj && loc ? cellKind(obj, loc.cellKey) : 'shelf';
   const title = obj && loc ? cellName(obj, loc.cellKey) : '';
-
-  // Physical fill estimate for this compartment.
-  const fill = useMemo(() => {
-    if (!spaceAwareness || !obj || !loc) return null;
-    let cw = obj.width;
-    let ch = obj.height;
-    if (obj.storage.type === 'grid') {
-      const cell = gridCells(obj.storage).find((c) => c.key === loc.cellKey);
-      if (cell) {
-        cw = obj.width * cell.w;
-        ch = obj.height * cell.h;
-      }
-    }
-    const area = cw * ch;
-    let used = 0;
-    for (const it of list) if (it.widthIn && it.heightIn) used += it.widthIn * it.heightIn * it.quantity;
-    return area > 0 ? Math.round((used / area) * 100) : 0;
-  }, [spaceAwareness, obj, loc, list]);
 
   const handleCardDrop = (targetId: string) => {
     if (!dragId || dragId === targetId) return;
@@ -104,13 +84,6 @@ export default function DrawerView() {
                 </h2>
               </div>
 
-              {fill !== null && (
-                <div className={`fill-meter compact ${fill > 100 ? 'over' : ''}`}>
-                  <div className="fill-bar" style={{ width: `${Math.min(100, fill)}%` }} />
-                  <span>{fill}% full</span>
-                </div>
-              )}
-
               <div className="drawer-sort">
                 <ArrowUpDown size={14} />
                 <select value={sortMode} onChange={(e) => setSortMode(e.target.value as SortMode)}>
@@ -150,7 +123,6 @@ export default function DrawerView() {
                     <ItemCard
                       item={it}
                       tags={tags}
-                      units={units}
                       highlighted={search.trim().length > 0 && itemMatches(it, search, tags)}
                       onClick={() => inspectItem(it.id)}
                       onDragStart={(e) => {

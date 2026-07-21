@@ -44,8 +44,6 @@ export default function Inspector() {
   const units = useStore((s) => s.settings.units);
   const mode = useStore((s) => s.settings.mode);
   const isDesign = mode === 'design';
-  const spaceAwareness = useStore((s) => s.settings.spaceAwareness);
-  const items = room.items;
   const update = useStore((s) => s.updateObject);
   const remove = useStore((s) => s.removeObject);
   const duplicate = useStore((s) => s.duplicateObject);
@@ -53,10 +51,6 @@ export default function Inspector() {
   const open = useStore((s) => s.open);
   const openPicker = useStore((s) => s.openPicker);
   const clearSelection = useStore((s) => s.clearSelection);
-  const rooms = useStore((s) => s.rooms);
-  const roomOrder = useStore((s) => s.roomOrder);
-  const moveObjectToRoom = useStore((s) => s.moveObjectToRoom);
-  const otherRooms = roomOrder.map((id) => rooms[id]).filter((r) => r.id !== room.id);
 
   if (selection.length !== 1) {
     if (selection.length > 1) {
@@ -88,18 +82,6 @@ export default function Inspector() {
   const dispLen = (inches: number) => fromInches(inches, units);
   const setLen = (key: keyof RoomObject) => (v: number) => update(obj.id, { [key]: toInches(v, units) } as never);
 
-  // Space-awareness fill estimate (footprint area basis).
-  const fill = (() => {
-    if (!spaceAwareness) return null;
-    const cellItems = Object.values(items).filter((i) => i.objectId === obj.id);
-    const containerArea = obj.width * obj.height;
-    let used = 0;
-    for (const it of cellItems) {
-      if (it.widthIn && it.heightIn) used += it.widthIn * it.heightIn * it.quantity;
-    }
-    return containerArea > 0 ? Math.min(999, Math.round((used / containerArea) * 100)) : 0;
-  })();
-
   return (
     <div className="inspector glass">
       <div className="inspector-head">
@@ -118,6 +100,13 @@ export default function Inspector() {
       </div>
 
       <div className="inspector-body">
+        {!isDesign && obj.notes && (
+          <div className="section">
+            <span className="label">Notes</span>
+            <p className="hint">{obj.notes}</p>
+          </div>
+        )}
+
         {!isDesign && (
           <button
             className="btn primary open-btn"
@@ -127,15 +116,19 @@ export default function Inspector() {
           </button>
         )}
 
-        {fill !== null && (
-          <div className={`fill-meter ${fill > 100 ? 'over' : ''}`}>
-            <div className="fill-bar" style={{ width: `${Math.min(100, fill)}%` }} />
-            <span>{fill}% full</span>
-          </div>
-        )}
-
         {isDesign && (
           <>
+            <div className="section">
+              <span className="label">Notes</span>
+              <textarea
+                className="field"
+                rows={3}
+                value={obj.notes}
+                placeholder="Optional notes…"
+                onChange={(e) => update(obj.id, { notes: e.target.value })}
+              />
+            </div>
+
             <div className="section">
               <span className="label">Dimensions</span>
               <div className="grid-2">
@@ -224,35 +217,6 @@ export default function Inspector() {
               {isContainer && <ShelfEditor obj={obj} />}
             </div>
 
-            <div className="section">
-              <span className="label">Notes</span>
-              <textarea
-                className="field"
-                rows={3}
-                value={obj.notes}
-                placeholder="Optional notes…"
-                onChange={(e) => update(obj.id, { notes: e.target.value })}
-              />
-            </div>
-
-            {otherRooms.length > 0 && (
-              <div className="section">
-                <span className="label">Move to room</span>
-                <select
-                  className="field"
-                  value=""
-                  onChange={(e) => e.target.value && moveObjectToRoom(obj.id, e.target.value)}
-                >
-                  <option value="">Choose a room…</option>
-                  {otherRooms.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
             <div className="inspector-actions">
               <button className="btn" onClick={() => duplicate(obj.id)}>
                 <Copy size={14} /> Duplicate
@@ -262,13 +226,6 @@ export default function Inspector() {
               </button>
             </div>
           </>
-        )}
-
-        {!isDesign && obj.notes && (
-          <div className="section">
-            <span className="label">Notes</span>
-            <p className="hint">{obj.notes}</p>
-          </div>
         )}
       </div>
     </div>

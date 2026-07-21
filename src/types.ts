@@ -54,7 +54,7 @@ export interface RoomObject {
   width: number;
   /** Footprint height/depth in inches (screen-vertical before rotation). */
   height: number;
-  /** Physical vertical extent in inches — used for space-awareness volume. */
+  /** Physical vertical extent (height) in inches. */
   depthIn: number;
   rotation: number;
   fill: string;
@@ -120,7 +120,6 @@ export interface Settings {
   units: Unit;
   gridVisible: boolean;
   snapToGrid: boolean;
-  spaceAwareness: boolean;
   /** Global override — show every object's label regardless of hover state. */
   showAllLabels: boolean;
   /** Default thickness (inches) applied to newly-drawn walls. */
@@ -171,11 +170,6 @@ export interface FloorPolygon {
   vertexIds: string[];
 }
 
-export interface Blueprint {
-  image: string; // data URL
-  opacity: number;
-}
-
 export interface CameraState {
   x: number;
   y: number;
@@ -186,7 +180,6 @@ export interface Room {
   id: string;
   name: string;
   order: number;
-  notes: string;
 
   objects: Record<string, RoomObject>;
   items: Record<string, Item>;
@@ -201,7 +194,6 @@ export interface Room {
   floorOpacity: number;
 
   camera: CameraState;
-  blueprint: Blueprint | null;
 }
 
 // ---------------------------------------------------------------------------

@@ -7,13 +7,10 @@ export default function ObjectContextMenu() {
   const closeContextMenu = useStore((s) => s.closeContextMenu);
   const duplicateObject = useStore((s) => s.duplicateObject);
   const removeObject = useStore((s) => s.removeObject);
-  const moveObjectToRoom = useStore((s) => s.moveObjectToRoom);
   const openPicker = useStore((s) => s.openPicker);
   const open = useStore((s) => s.open);
   const mode = useStore((s) => s.settings.mode);
   const room = useActiveRoom();
-  const rooms = useStore((s) => s.rooms);
-  const roomOrder = useStore((s) => s.roomOrder);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -32,7 +29,6 @@ export default function ObjectContextMenu() {
   if (!contextMenu) return null;
   const obj = room.objects[contextMenu.objectId];
   if (!obj) return null;
-  const otherRooms = roomOrder.map((id) => rooms[id]).filter((r) => r.id !== room.id);
   const isContainer = obj.storage.type === 'grid';
 
   return (
@@ -66,24 +62,6 @@ export default function ObjectContextMenu() {
           >
             <Copy size={14} /> Duplicate
           </button>
-          {otherRooms.length > 0 && (
-            <>
-              <div className="context-sep" />
-              <div className="context-submenu-label">Move to room</div>
-              {otherRooms.map((r) => (
-                <button
-                  key={r.id}
-                  className="context-item"
-                  onClick={() => {
-                    moveObjectToRoom(obj.id, r.id);
-                    closeContextMenu();
-                  }}
-                >
-                  {r.name}
-                </button>
-              ))}
-            </>
-          )}
           <div className="context-sep" />
           <button
             className="context-item danger"

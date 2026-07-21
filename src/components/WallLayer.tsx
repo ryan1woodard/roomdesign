@@ -126,9 +126,6 @@ export default function WallLayer({ room, px, units, wallTool, wallSelection, wa
         );
       })}
 
-      {/* Blueprint reference image */}
-      {/* (rendered by RoomCanvas beneath everything else, not here) */}
-
       {/* Walls */}
       {Object.values(room.walls).map((wall) => {
         const openings = openingsByWall[wall.id] ?? [];

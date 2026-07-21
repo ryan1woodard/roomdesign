@@ -6,7 +6,6 @@ import {
   Boxes,
   Grid3x3,
   Magnet,
-  Ruler,
   Undo2,
   Redo2,
   Tags,
@@ -43,7 +42,6 @@ export default function Toolbar() {
   const addObject = useStore((s) => s.addObject);
   const toggleGrid = useStore((s) => s.toggleGrid);
   const toggleSnap = useStore((s) => s.toggleSnap);
-  const toggleSpace = useStore((s) => s.toggleSpaceAwareness);
   const toggleShowAllLabels = useStore((s) => s.toggleShowAllLabels);
   const setUnit = useStore((s) => s.setUnit);
   const undo = useStore((s) => s.undo);
@@ -109,13 +107,6 @@ export default function Toolbar() {
           </button>
           <button className={`btn icon ${settings.snapToGrid ? 'active' : ''}`} title="Snap to grid" onClick={toggleSnap}>
             <Magnet size={17} />
-          </button>
-          <button
-            className={`btn icon ${settings.spaceAwareness ? 'active' : ''}`}
-            title="Space awareness — track fill % and warn on overflow"
-            onClick={toggleSpace}
-          >
-            <Ruler size={17} />
           </button>
         </>
       )}

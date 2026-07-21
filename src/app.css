@@ -73,41 +73,78 @@
   background: var(--bg-1);
   color: var(--text-1);
   border: 1px solid var(--stroke);
-  border-radius: var(--r-sm);
-  padding: 6px 10px;
+  border-radius: 20px;
+  padding: 6px 12px;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.12s, border-color 0.12s;
+  transition: background 0.12s, border-color 0.12s, transform 0.08s;
 }
 .save-btn:hover {
   background: var(--bg-2);
   border-color: var(--stroke-strong);
 }
+.save-btn:active {
+  transform: scale(0.96);
+}
+/* Rounded, theme-aware status pill. Width is fixed to fit the longest
+   possible label ("Save failed") so the header never resizes as the save
+   status changes — only the label text crossfades via opacity. */
 .save-status {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 7px;
   font-size: 12px;
   color: var(--text-2);
   white-space: nowrap;
 }
-.save-dot {
-  font-size: 9px;
-  line-height: 1;
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--text-2);
+  transition: background-color 0.2s ease;
 }
-.save-status--saved {
-  color: var(--text-2);
+.save-status-text {
+  position: relative;
+  display: inline-block;
+  width: 68px;
+  overflow: hidden;
 }
-.save-status--saving {
-  color: #e0b84c;
+.save-status-label {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.save-status--unsaved {
-  color: #ff5d6c;
+.save-status--saved .status-dot {
+  background: var(--ok);
 }
-.save-status--error {
-  color: #ff5d6c;
+.save-status--saving .status-dot {
+  background: #e0b84c;
+  animation: save-dot-pulse 1.1s ease-in-out infinite;
+}
+.save-status--unsaved .status-dot {
+  background: #ff9f45;
+}
+.save-status--error .status-dot {
+  background: var(--danger);
+  animation: save-dot-pulse 1.1s ease-in-out infinite;
+}
+.save-status--error .save-status-label {
+  color: var(--danger);
   font-weight: 600;
+}
+@keyframes save-dot-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.55;
+    transform: scale(0.85);
+  }
 }
 .unit-select {
   background: var(--bg-1);
@@ -440,10 +477,15 @@
   width: 24px;
   height: 24px;
   padding: 0;
-  border: none;
+  border: 1px solid var(--stroke-strong);
   border-radius: 7px;
   background: none;
   cursor: pointer;
+  transition: transform 0.1s, border-color 0.12s;
+}
+.color-picker:hover {
+  transform: scale(1.1);
+  border-color: var(--accent);
 }
 .inspector-actions {
   display: flex;
@@ -533,10 +575,16 @@
 }
 .cell-edit {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
+}
+.cell-edit .field {
+  flex: 1 1 120px;
+  min-width: 0;
 }
 .seg {
   display: flex;
+  flex-shrink: 0;
   background: var(--bg-1);
   border: 1px solid var(--stroke);
   border-radius: var(--r-sm);
@@ -546,6 +594,7 @@
   padding: 6px 10px;
   font-size: 12px;
   color: var(--text-2);
+  white-space: nowrap;
 }
 .seg button.active {
   background: var(--accent-soft);
@@ -555,40 +604,6 @@
   font-size: 11px;
   color: var(--text-2);
   line-height: 1.5;
-}
-
-/* Fill meter */
-.fill-meter {
-  position: relative;
-  height: 24px;
-  background: var(--bg-1);
-  border-radius: var(--r-sm);
-  overflow: hidden;
-  display: grid;
-  place-items: center;
-  border: 1px solid var(--stroke);
-}
-.fill-meter .fill-bar {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  background: linear-gradient(90deg, var(--accent), #6aa3ff);
-  transition: width 0.3s;
-}
-.fill-meter.over .fill-bar {
-  background: linear-gradient(90deg, var(--danger), #ff8a94);
-}
-.fill-meter span {
-  position: relative;
-  font-size: 11px;
-  font-weight: 700;
-  z-index: 1;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
-}
-.fill-meter.compact {
-  width: 120px;
-  height: 26px;
 }
 
 /* ---------------- Cell picker ---------------- */
@@ -842,39 +857,33 @@
   flex-wrap: wrap;
   gap: 4px;
 }
-.card-hover {
-  position: absolute;
-  left: 50%;
-  bottom: calc(100% + 8px);
-  transform: translateX(-50%) translateY(4px);
+/* Floating item hover tooltip — rendered via portal, positioned in fixed
+   viewport coordinates by ItemCard so it can flip above/below and never
+   gets clipped by a scrolling drawer/shelf container. */
+.item-hover-tip {
+  position: fixed;
   width: 200px;
   border-radius: var(--r-md);
   padding: 10px 12px;
-  opacity: 0;
   pointer-events: none;
-  transition: opacity 0.14s, transform 0.14s;
-  z-index: 10;
+  transition: opacity 0.14s ease;
+  z-index: 200;
 }
-.item-card:hover .card-hover {
-  opacity: 1;
-  transform: translateX(-50%) translateY(0);
-}
-.ch-name {
+.iht-name {
   font-weight: 700;
   font-size: 13px;
   margin-bottom: 4px;
 }
-.ch-row {
+.iht-qty {
   font-size: 12px;
   color: var(--text-1);
   line-height: 1.5;
 }
-.ch-note {
-  font-size: 11px;
-  color: var(--text-2);
+.iht-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
   margin-top: 6px;
-  border-top: 1px solid var(--stroke);
-  padding-top: 6px;
 }
 
 /* Move rail */
@@ -1170,33 +1179,6 @@
   opacity: 1;
   pointer-events: auto;
 }
-.panel-subhead {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--text-1);
-  padding: 8px 4px;
-  width: 100%;
-  border-top: 1px solid var(--stroke);
-  margin-top: 6px;
-}
-.panel-subhead:hover {
-  color: var(--text-0);
-}
-.room-props {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 2px 2px 6px;
-  animation: fade-in 0.15s ease;
-}
-.blueprint-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
 /* ---------------- Wall Inspector ---------------- */
 .wall-inspector .check-row {
   display: flex;

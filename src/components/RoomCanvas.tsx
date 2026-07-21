@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
-import { Stage, Layer, Line, Transformer, Image as KonvaImage } from 'react-konva';
+import { Stage, Layer, Line, Transformer } from 'react-konva';
 import Konva from 'konva';
 import { useStore, useActiveRoom } from '../store/store';
 import { objectsMatchingSearch } from '../lib/selectors';
@@ -29,21 +29,6 @@ function useWindowSize() {
     return () => window.removeEventListener('resize', on);
   }, []);
   return size;
-}
-
-function useHtmlImage(src: string | undefined): HTMLImageElement | null {
-  const [img, setImg] = useState<HTMLImageElement | null>(null);
-  useEffect(() => {
-    if (!src) {
-      setImg(null);
-      return;
-    }
-    const image = new Image();
-    image.onload = () => setImg(image);
-    image.src = src;
-    return () => setImg(null);
-  }, [src]);
-  return img;
 }
 
 export default function RoomCanvas() {
@@ -88,7 +73,6 @@ export default function RoomCanvas() {
   const activeLayer = layers.find((l) => l.id === room.activeLayerId);
   const isWallMode = mode === 'design' && activeLayer?.kind === 'wall';
   const wallLayer = layers.find((l) => l.kind === 'wall');
-  const blueprintImg = useHtmlImage(room.blueprint?.image);
 
   // Restore camera + clear live drawing state whenever the active room changes.
   useEffect(() => {
@@ -377,12 +361,6 @@ export default function RoomCanvas() {
         style={{ background: 'transparent' }}
       >
         <Layer listening={false}>{grid}</Layer>
-
-        {blueprintImg && room.blueprint && (
-          <Layer listening={false}>
-            <KonvaImage image={blueprintImg} x={0} y={0} opacity={room.blueprint.opacity} />
-          </Layer>
-        )}
 
         <Layer>
           <WallLayer

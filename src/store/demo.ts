@@ -201,7 +201,6 @@ export function buildDemo(): {
     id: 'room-lab',
     name: 'Lab',
     order: 0,
-    notes: 'Main electronics lab',
     objects: labObjects,
     items: labItems,
     layers: [
@@ -216,7 +215,6 @@ export function buildDemo(): {
     floorColor: '#1c2740',
     floorOpacity: 1,
     camera: { x: 160, y: 140, scale: 1 },
-    blueprint: null,
   };
 
   // ---------------- Storage Room ----------------
@@ -269,7 +267,6 @@ export function buildDemo(): {
     id: 'room-storage',
     name: 'Storage Room',
     order: 1,
-    notes: '',
     objects: { 'obj-rack': rack },
     items: storageItems,
     layers: [
@@ -284,7 +281,6 @@ export function buildDemo(): {
     floorColor: '#241c30',
     floorOpacity: 1,
     camera: { x: 160, y: 140, scale: 1 },
-    blueprint: null,
   };
 
   return {

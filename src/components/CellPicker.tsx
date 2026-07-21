@@ -7,7 +7,7 @@ export default function CellPicker() {
   const pickerObjectId = useStore((s) => s.pickerObjectId);
   const room = useActiveRoom();
   const openPicker = useStore((s) => s.openPicker);
-  const open = useStore((s) => s.open);
+  const openFromPicker = useStore((s) => s.openFromPicker);
 
   const obj = pickerObjectId ? room.objects[pickerObjectId] : null;
 
@@ -55,7 +55,7 @@ export default function CellPicker() {
                       width: `${c.w * 100}%`,
                       height: `${c.h * 100}%`,
                     }}
-                    onClick={() => open({ objectId: obj.id, cellKey: c.key })}
+                    onClick={() => openFromPicker({ objectId: obj.id, cellKey: c.key })}
                   >
                     <span className="pc-name">{cellName(obj, c.key)}</span>
                     <span className="pc-count">
