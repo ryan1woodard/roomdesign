@@ -107,6 +107,15 @@ export type SortMode =
   | 'quantity'
   | 'color';
 
+/**
+ * Design Mode is for building/arranging the space; Inventory Mode is for
+ * browsing and managing what's stored inside it. The two are mutually
+ * exclusive on purpose — each hides the other's tools to keep the interface
+ * focused, and Inventory Mode disables furniture-layout edits so browsing
+ * never accidentally reshapes the room.
+ */
+export type AppMode = 'design' | 'inventory';
+
 export interface Settings {
   units: Unit;
   gridVisible: boolean;
@@ -118,6 +127,7 @@ export interface Settings {
   wallThickness: number;
   /** Snap wall drawing/dragging to 15° increments. */
   wallAngleSnap: boolean;
+  mode: AppMode;
 }
 
 /** A single location reference: an object + one of its cells. */
@@ -192,4 +202,56 @@ export interface Room {
 
   camera: CameraState;
   blueprint: Blueprint | null;
+}
+
+// ---------------------------------------------------------------------------
+// Users, change tracking, save state, project metadata
+// ---------------------------------------------------------------------------
+
+/** A lightweight local identity — for attribution, not authentication. */
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+}
+
+export type LogScope = 'inventory' | 'room' | 'wall' | 'object' | 'layer';
+
+export type LogAction =
+  | 'created'
+  | 'deleted'
+  | 'quantity_changed'
+  | 'moved'
+  | 'renamed'
+  | 'notes_edited'
+  | 'edited';
+
+/** A single attributed change, feeding the Inventory Log (and, later, any
+ * broader activity view). Kept flat and self-describing so an entry still
+ * reads sensibly even after the item/room/wall it refers to is gone. */
+export interface LogEntry {
+  id: string;
+  timestamp: number;
+  userName: string;
+  userEmail: string;
+  scope: LogScope;
+  action: LogAction;
+  /** Id of the item/room/wall/object this entry is about, used only to
+   * coalesce a burst of rapid edits (e.g. typing) into a single entry. */
+  entityId: string;
+  /** Human-readable subject, e.g. the item or room name at the time. */
+  subject: string;
+  roomId?: string;
+  roomName?: string;
+  previousValue?: string;
+  newValue?: string;
+  detail?: string;
+}
+
+export type SaveStatus = 'saved' | 'saving' | 'unsaved' | 'error';
+
+export interface ProjectMeta {
+  id: string;
+  name: string;
+  createdAt: number;
 }

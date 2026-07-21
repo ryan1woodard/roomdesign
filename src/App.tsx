@@ -10,7 +10,10 @@ import CellPicker from './components/CellPicker';
 import DrawerView from './components/DrawerView';
 import ObjectContextMenu from './components/ObjectContextMenu';
 import LoadingScreen from './components/LoadingScreen';
-import { useStore, useActiveRoom } from './store/store';
+import LogViewer from './components/LogViewer';
+import LoginScreen from './components/LoginScreen';
+import UserMenu from './components/UserMenu';
+import { useStore, useActiveRoom, useSaveStore } from './store/store';
 import './app.css';
 
 function useHydrated() {
@@ -26,8 +29,23 @@ function useHydrated() {
   return hydrated;
 }
 
+function useUnsavedChangesGuard() {
+  const saveStatus = useSaveStore((s) => s.saveStatus);
+  useEffect(() => {
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (saveStatus === 'saved') return;
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [saveStatus]);
+}
+
 export default function App() {
   const hydrated = useHydrated();
+  useUnsavedChangesGuard();
+  const currentUser = useStore((s) => s.currentUser);
   const undo = useStore((s) => s.undo);
   const redo = useStore((s) => s.redo);
   const selection = useStore((s) => s.selection);
@@ -53,9 +71,10 @@ export default function App() {
   const deleteWall = useStore((s) => s.deleteWall);
   const removeOpening = useStore((s) => s.removeOpening);
 
+  const mode = useStore((s) => s.settings.mode);
   const room = useActiveRoom();
   const activeLayer = room?.layers.find((l) => l.id === room.activeLayerId);
-  const isWallMode = activeLayer?.kind === 'wall';
+  const isWallMode = mode === 'design' && activeLayer?.kind === 'wall';
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -82,16 +101,16 @@ export default function App() {
       if (mod && e.key.toLowerCase() === 'z') {
         e.preventDefault();
         e.shiftKey ? redo() : undo();
-      } else if (mod && e.key.toLowerCase() === 'd') {
+      } else if (mode === 'design' && mod && e.key.toLowerCase() === 'd') {
         e.preventDefault();
         selection.forEach((id) => duplicateObject(id));
-      } else if (mod && e.key.toLowerCase() === 'c') {
+      } else if (mode === 'design' && mod && e.key.toLowerCase() === 'c') {
         if (selection.length) copySelection();
-      } else if (mod && e.key.toLowerCase() === 'v') {
+      } else if (mode === 'design' && mod && e.key.toLowerCase() === 'v') {
         pasteClipboard();
       } else if (e.key.toLowerCase() === 'f' && !mod) {
         requestFitToView();
-      } else if (e.key === 'Delete' || e.key === 'Backspace') {
+      } else if (mode === 'design' && (e.key === 'Delete' || e.key === 'Backspace')) {
         if (wallSelection) {
           e.preventDefault();
           if (wallSelection.type === 'wall') deleteWall(wallSelection.id);
@@ -134,9 +153,11 @@ export default function App() {
     wallTool,
     setWallTool,
     room,
+    mode,
   ]);
 
   if (!hydrated) return <LoadingScreen />;
+  if (!currentUser) return <LoginScreen />;
 
   return (
     <div className="app-root">
@@ -146,10 +167,11 @@ export default function App() {
         <div className="top-bar">
           <Toolbar />
           <SearchBar />
+          <UserMenu />
         </div>
         <div className="left-rail">
           <RoomNavigator />
-          <LayersPanel />
+          {mode === 'design' && <LayersPanel />}
         </div>
         {isWallMode ? <WallInspector /> : <Inspector />}
       </div>
@@ -157,12 +179,7 @@ export default function App() {
       <CellPicker />
       <DrawerView />
       <ObjectContextMenu />
-
-      <div className="hint-bar">
-        {isWallMode
-          ? 'Click to place wall points · Drag for a straight wall · Enter/double-click to finish · Esc to cancel'
-          : 'Double-click furniture to open · Scroll to zoom · Drag to pan · Everything auto-saves'}
-      </div>
+      <LogViewer />
     </div>
   );
 }

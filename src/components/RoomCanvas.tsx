@@ -7,6 +7,7 @@ import { computeVisibleBounds } from '../lib/bounds';
 import ObjectNode from './ObjectNode';
 import WallLayer from './WallLayer';
 import Minimap from './Minimap';
+import StatusBar from './StatusBar';
 
 export const PX_PER_IN = 6; // world scale before stage zoom
 const GRID_IN = 6; // grid + snap step, inches
@@ -58,6 +59,8 @@ export default function RoomCanvas() {
   const wallGestureStart = useRef<{ x: number; y: number } | null>(null);
   const lastWallCommit = useRef<{ point: { x: number; y: number }; time: number } | null>(null);
   const fitAnimRef = useRef<number | null>(null);
+  const [liveCursor, setLiveCursor] = useState<{ x: number; y: number } | null>(null);
+  const lastCursorUpdate = useRef(0);
 
   const tags = useStore((s) => s.tags);
   const selection = useStore((s) => s.selection);
@@ -81,8 +84,9 @@ export default function RoomCanvas() {
   const objects = room.objects;
   const items = room.items;
   const layers = room.layers;
+  const mode = settings.mode;
   const activeLayer = layers.find((l) => l.id === room.activeLayerId);
-  const isWallMode = activeLayer?.kind === 'wall';
+  const isWallMode = mode === 'design' && activeLayer?.kind === 'wall';
   const wallLayer = layers.find((l) => l.kind === 'wall');
   const blueprintImg = useHtmlImage(room.blueprint?.image);
 
@@ -306,7 +310,13 @@ export default function RoomCanvas() {
           if (isWallMode && wallTool !== 'select') {
             setWallCursor(worldPointFromStage());
           }
+          const now = performance.now();
+          if (now - lastCursorUpdate.current > 60) {
+            lastCursorUpdate.current = now;
+            setLiveCursor(worldPointFromStage());
+          }
         }}
+        onMouseLeave={() => setLiveCursor(null)}
         onMouseDown={(e) => {
           // Drawing captures the gesture regardless of what's under the cursor
           // (an existing wall may be right where the next point goes).
@@ -401,16 +411,17 @@ export default function RoomCanvas() {
               snapIn={snapIn}
               zoomScale={cam.scale}
               showAllLabels={settings.showAllLabels}
+              mode={mode}
               registerNode={registerNode}
               onSelect={handleObjSelect}
-              onOpenCell={(id, key) => open({ objectId: id, cellKey: key })}
-              onOpenPicker={(id) => openPicker(id)}
+              onOpenCell={(id, key) => mode === 'inventory' && open({ objectId: id, cellKey: key })}
+              onOpenPicker={(id) => mode === 'inventory' && openPicker(id)}
               onDragMove={(id, x, y) => updateObject(id, { x, y })}
               onDragEnd={(id, x, y) => updateObject(id, { x, y })}
               onContextMenu={(id, x, y) => openContextMenu(id, x, y)}
             />
           ))}
-          {!isWallMode && (
+          {mode === 'design' && !isWallMode && (
             <Transformer
               ref={trRef}
               rotateEnabled
@@ -431,6 +442,8 @@ export default function RoomCanvas() {
         setCam(next);
         commitCameraDebounced(next);
       }} />
+
+      <StatusBar zoomPct={cam.scale * 100} cursorWorld={liveCursor} />
     </>
   );
 }

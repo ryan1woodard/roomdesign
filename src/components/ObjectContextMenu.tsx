@@ -10,6 +10,7 @@ export default function ObjectContextMenu() {
   const moveObjectToRoom = useStore((s) => s.moveObjectToRoom);
   const openPicker = useStore((s) => s.openPicker);
   const open = useStore((s) => s.open);
+  const mode = useStore((s) => s.settings.mode);
   const room = useActiveRoom();
   const rooms = useStore((s) => s.rooms);
   const roomOrder = useStore((s) => s.roomOrder);
@@ -42,53 +43,59 @@ export default function ObjectContextMenu() {
       onMouseDown={(e) => e.stopPropagation()}
     >
       <div className="context-menu-title">{obj.name}</div>
-      <button
-        className="context-item"
-        onClick={() => {
-          if (isContainer) openPicker(obj.id);
-          else open({ objectId: obj.id, cellKey: 'surface' });
-          closeContextMenu();
-        }}
-      >
-        <DoorOpen size={14} /> Open
-      </button>
-      <button
-        className="context-item"
-        onClick={() => {
-          duplicateObject(obj.id);
-          closeContextMenu();
-        }}
-      >
-        <Copy size={14} /> Duplicate
-      </button>
-      {otherRooms.length > 0 && (
+      {mode === 'inventory' && (
+        <button
+          className="context-item"
+          onClick={() => {
+            if (isContainer) openPicker(obj.id);
+            else open({ objectId: obj.id, cellKey: 'surface' });
+            closeContextMenu();
+          }}
+        >
+          <DoorOpen size={14} /> Open
+        </button>
+      )}
+      {mode === 'design' && (
         <>
+          <button
+            className="context-item"
+            onClick={() => {
+              duplicateObject(obj.id);
+              closeContextMenu();
+            }}
+          >
+            <Copy size={14} /> Duplicate
+          </button>
+          {otherRooms.length > 0 && (
+            <>
+              <div className="context-sep" />
+              <div className="context-submenu-label">Move to room</div>
+              {otherRooms.map((r) => (
+                <button
+                  key={r.id}
+                  className="context-item"
+                  onClick={() => {
+                    moveObjectToRoom(obj.id, r.id);
+                    closeContextMenu();
+                  }}
+                >
+                  {r.name}
+                </button>
+              ))}
+            </>
+          )}
           <div className="context-sep" />
-          <div className="context-submenu-label">Move to room</div>
-          {otherRooms.map((r) => (
-            <button
-              key={r.id}
-              className="context-item"
-              onClick={() => {
-                moveObjectToRoom(obj.id, r.id);
-                closeContextMenu();
-              }}
-            >
-              {r.name}
-            </button>
-          ))}
+          <button
+            className="context-item danger"
+            onClick={() => {
+              removeObject(obj.id);
+              closeContextMenu();
+            }}
+          >
+            <Trash2 size={14} /> Delete
+          </button>
         </>
       )}
-      <div className="context-sep" />
-      <button
-        className="context-item danger"
-        onClick={() => {
-          removeObject(obj.id);
-          closeContextMenu();
-        }}
-      >
-        <Trash2 size={14} /> Delete
-      </button>
     </div>
   );
 }

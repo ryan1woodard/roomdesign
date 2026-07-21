@@ -70,6 +70,8 @@ export default function RoomNavigator() {
   const setBlueprintOpacity = useStore((s) => s.setBlueprintOpacity);
   const clearBlueprint = useStore((s) => s.clearBlueprint);
   const restoreFromRecovery = useStore((s) => s.restoreFromRecovery);
+  const mode = useStore((s) => s.settings.mode);
+  const isDesign = mode === 'design';
 
   const [collapsed, setCollapsed] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
@@ -87,16 +89,18 @@ export default function RoomNavigator() {
       <div className="panel-head" onClick={() => setCollapsed((c) => !c)}>
         <FolderTree size={14} />
         <span>Rooms</span>
-        <button
-          className="btn icon"
-          style={{ marginLeft: 'auto' }}
-          onClick={(e) => {
-            e.stopPropagation();
-            addRoom();
-          }}
-        >
-          <Plus size={15} />
-        </button>
+        {isDesign && (
+          <button
+            className="btn icon"
+            style={{ marginLeft: 'auto' }}
+            onClick={(e) => {
+              e.stopPropagation();
+              addRoom();
+            }}
+          >
+            <Plus size={15} />
+          </button>
+        )}
       </div>
 
       {!collapsed && (
@@ -108,7 +112,7 @@ export default function RoomNavigator() {
               return (
                 <div
                   key={id}
-                  className={`room-row ${active ? 'active' : ''}`}
+                  className={`room-row ${active ? 'active' : ''} ${isDesign ? 'interactive' : ''}`}
                   onClick={() => setActiveRoom(id)}
                 >
                   <RoomThumb room={r} />
@@ -128,58 +132,66 @@ export default function RoomNavigator() {
                         }}
                       />
                     ) : (
-                      <span
-                        className="room-name"
-                        onDoubleClick={(e) => {
-                          e.stopPropagation();
-                          setEditing(id);
-                        }}
-                      >
-                        {r.name}
-                      </span>
-                    )}
-                    <span className="room-meta">{Object.keys(r.items).length} items</span>
-                  </div>
-                  <div className="layer-actions room-actions">
-                    <button
-                      className="btn icon"
-                      disabled={idx === 0}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        reorderRoom(id, -1);
-                      }}
-                    >
-                      <ChevronUp size={13} />
-                    </button>
-                    <button
-                      className="btn icon"
-                      disabled={idx === roomOrder.length - 1}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        reorderRoom(id, 1);
-                      }}
-                    >
-                      <ChevronDown size={13} />
-                    </button>
-                    <button
-                      className="btn icon"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        duplicateRoom(id);
-                      }}
-                    >
-                      <Copy size={13} />
-                    </button>
-                    {roomOrder.length > 1 && (
-                      <button
-                        className="btn icon danger"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (confirm(`Delete "${r.name}"? This removes all its furniture and inventory.`)) deleteRoom(id);
-                        }}
-                      >
-                        <Trash2 size={13} />
-                      </button>
+                      <>
+                        <div className="room-row-info">
+                          <span
+                            className="room-name"
+                            onDoubleClick={(e) => {
+                              if (!isDesign) return;
+                              e.stopPropagation();
+                              setEditing(id);
+                            }}
+                          >
+                            {r.name}
+                          </span>
+                          <span className="room-meta">{Object.keys(r.items).length} items</span>
+                        </div>
+                        {isDesign && (
+                          <div className="room-row-actions-slot">
+                            <button
+                              className="btn icon"
+                              disabled={idx === 0}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                reorderRoom(id, -1);
+                              }}
+                            >
+                              <ChevronUp size={13} />
+                            </button>
+                            <button
+                              className="btn icon"
+                              disabled={idx === roomOrder.length - 1}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                reorderRoom(id, 1);
+                              }}
+                            >
+                              <ChevronDown size={13} />
+                            </button>
+                            <button
+                              className="btn icon"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                duplicateRoom(id);
+                              }}
+                            >
+                              <Copy size={13} />
+                            </button>
+                            {roomOrder.length > 1 && (
+                              <button
+                                className="btn icon danger"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (confirm(`Delete "${r.name}"? This removes all its furniture and inventory.`))
+                                    deleteRoom(id);
+                                }}
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </>
                     )}
                   </div>
                 </div>
@@ -194,58 +206,68 @@ export default function RoomNavigator() {
           {showProps && (
             <div className="room-props">
               <label className="label">Notes</label>
-              <textarea
-                className="field"
-                rows={2}
-                value={activeRoom.notes}
-                placeholder="Optional notes about this room…"
-                onChange={(e) => setRoomNotes(e.target.value)}
-              />
-              <label className="label">Blueprint reference</label>
-              {activeRoom.blueprint ? (
+              {isDesign ? (
+                <textarea
+                  className="field"
+                  rows={2}
+                  value={activeRoom.notes}
+                  placeholder="Optional notes about this room…"
+                  onChange={(e) => setRoomNotes(e.target.value)}
+                />
+              ) : (
+                <p className="hint">{activeRoom.notes || 'No notes.'}</p>
+              )}
+              {isDesign && (
                 <>
-                  <div className="blueprint-row">
-                    <span className="hint">Image loaded</span>
-                    <button className="btn icon danger" onClick={clearBlueprint}>
-                      <X size={13} />
+                  <label className="label">Blueprint reference</label>
+                  {activeRoom.blueprint ? (
+                    <>
+                      <div className="blueprint-row">
+                        <span className="hint">Image loaded</span>
+                        <button className="btn icon danger" onClick={clearBlueprint}>
+                          <X size={13} />
+                        </button>
+                      </div>
+                      <input
+                        className="field"
+                        type="range"
+                        min={0.1}
+                        max={1}
+                        step={0.05}
+                        value={activeRoom.blueprint.opacity}
+                        onChange={(e) => setBlueprintOpacity(parseFloat(e.target.value))}
+                      />
+                    </>
+                  ) : (
+                    <button className="btn" onClick={() => fileRef.current?.click()}>
+                      <ImagePlus size={14} /> Import floor plan image
                     </button>
-                  </div>
+                  )}
                   <input
-                    className="field"
-                    type="range"
-                    min={0.1}
-                    max={1}
-                    step={0.05}
-                    value={activeRoom.blueprint.opacity}
-                    onChange={(e) => setBlueprintOpacity(parseFloat(e.target.value))}
+                    ref={fileRef}
+                    type="file"
+                    accept="image/*"
+                    hidden
+                    onChange={(e) => e.target.files?.[0] && onBlueprintFile(e.target.files[0])}
                   />
                 </>
-              ) : (
-                <button className="btn" onClick={() => fileRef.current?.click()}>
-                  <ImagePlus size={14} /> Import floor plan image
-                </button>
               )}
-              <input
-                ref={fileRef}
-                type="file"
-                accept="image/*"
-                hidden
-                onChange={(e) => e.target.files?.[0] && onBlueprintFile(e.target.files[0])}
-              />
             </div>
           )}
 
-          <button
-            className="panel-subhead"
-            onClick={async () => {
-              if (confirm('Restore the most recent auto-save recovery snapshot? This replaces your current project.')) {
-                const ok = await restoreFromRecovery();
-                if (!ok) alert('No recovery snapshot was found yet.');
-              }
-            }}
-          >
-            <RotateCcw size={13} /> Restore last snapshot
-          </button>
+          {isDesign && (
+            <button
+              className="panel-subhead"
+              onClick={async () => {
+                if (confirm('Restore the most recent auto-save recovery snapshot? This replaces your current project.')) {
+                  const ok = await restoreFromRecovery();
+                  if (!ok) alert('No recovery snapshot was found yet.');
+                }
+              }}
+            >
+              <RotateCcw size={13} /> Restore last snapshot
+            </button>
+          )}
         </>
       )}
     </div>

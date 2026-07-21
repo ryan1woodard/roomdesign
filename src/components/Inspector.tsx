@@ -42,6 +42,8 @@ export default function Inspector() {
   const objects = room.objects;
   const layers = room.layers.filter((l) => l.kind === 'object');
   const units = useStore((s) => s.settings.units);
+  const mode = useStore((s) => s.settings.mode);
+  const isDesign = mode === 'design';
   const spaceAwareness = useStore((s) => s.settings.spaceAwareness);
   const items = room.items;
   const update = useStore((s) => s.updateObject);
@@ -67,7 +69,9 @@ export default function Inspector() {
             </button>
           </div>
           <p className="hint" style={{ padding: 16 }}>
-            Multiple objects selected. Drag to move them, or select a single object to edit its properties.
+            {isDesign
+              ? 'Multiple objects selected. Drag to move them, or select a single object to edit its properties.'
+              : 'Multiple objects selected. Select a single object to open it.'}
           </p>
         </div>
       );
@@ -99,23 +103,29 @@ export default function Inspector() {
   return (
     <div className="inspector glass">
       <div className="inspector-head">
-        <input
-          className="field name-field"
-          value={obj.name}
-          onChange={(e) => update(obj.id, { name: e.target.value })}
-        />
+        {isDesign ? (
+          <input
+            className="field name-field"
+            value={obj.name}
+            onChange={(e) => update(obj.id, { name: e.target.value })}
+          />
+        ) : (
+          <strong className="name-field">{obj.name}</strong>
+        )}
         <button className="btn icon" onClick={clearSelection} title="Deselect">
           <X size={15} />
         </button>
       </div>
 
       <div className="inspector-body">
-        <button
-          className="btn primary open-btn"
-          onClick={() => (isContainer ? openPicker(obj.id) : open({ objectId: obj.id, cellKey: 'surface' }))}
-        >
-          <DoorOpen size={16} /> Open {isContainer ? 'compartments' : 'contents'}
-        </button>
+        {!isDesign && (
+          <button
+            className="btn primary open-btn"
+            onClick={() => (isContainer ? openPicker(obj.id) : open({ objectId: obj.id, cellKey: 'surface' }))}
+          >
+            <DoorOpen size={16} /> Open {isContainer ? 'compartments' : 'contents'}
+          </button>
+        )}
 
         {fill !== null && (
           <div className={`fill-meter ${fill > 100 ? 'over' : ''}`}>
@@ -124,132 +134,142 @@ export default function Inspector() {
           </div>
         )}
 
-        <div className="section">
-          <span className="label">Dimensions</span>
-          <div className="grid-2">
-            <NumberField label="Width" value={dispLen(obj.width)} unitLabel={u} onCommit={setLen('width')} />
-            <NumberField label="Depth" value={dispLen(obj.height)} unitLabel={u} onCommit={setLen('height')} />
-            <NumberField label="Height" value={dispLen(obj.depthIn)} unitLabel={u} onCommit={setLen('depthIn')} />
-            <NumberField label="Rotation" value={obj.rotation} unitLabel="°" onCommit={(v) => update(obj.id, { rotation: v })} />
-          </div>
-        </div>
-
-        {obj.kind !== 'text' && (
-          <div className="section">
-            <span className="label">Appearance</span>
-            <div className="swatches">
-              {SWATCHES.map((c) => (
-                <button
-                  key={c}
-                  className={`swatch ${obj.fill === c ? 'sel' : ''}`}
-                  style={{ background: c }}
-                  onClick={() => update(obj.id, { fill: c })}
+        {isDesign && (
+          <>
+            <div className="section">
+              <span className="label">Dimensions</span>
+              <div className="grid-2">
+                <NumberField label="Width" value={dispLen(obj.width)} unitLabel={u} onCommit={setLen('width')} />
+                <NumberField label="Depth" value={dispLen(obj.height)} unitLabel={u} onCommit={setLen('height')} />
+                <NumberField label="Height" value={dispLen(obj.depthIn)} unitLabel={u} onCommit={setLen('depthIn')} />
+                <NumberField
+                  label="Rotation"
+                  value={obj.rotation}
+                  unitLabel="°"
+                  onCommit={(v) => update(obj.id, { rotation: v })}
                 />
-              ))}
-              <input
-                type="color"
-                className="color-picker"
-                value={obj.fill.startsWith('#') ? obj.fill : '#3b4a63'}
-                onChange={(e) => update(obj.id, { fill: e.target.value })}
+              </div>
+            </div>
+
+            {obj.kind !== 'text' && (
+              <div className="section">
+                <span className="label">Appearance</span>
+                <div className="swatches">
+                  {SWATCHES.map((c) => (
+                    <button
+                      key={c}
+                      className={`swatch ${obj.fill === c ? 'sel' : ''}`}
+                      style={{ background: c }}
+                      onClick={() => update(obj.id, { fill: c })}
+                    />
+                  ))}
+                  <input
+                    type="color"
+                    className="color-picker"
+                    value={obj.fill.startsWith('#') ? obj.fill : '#3b4a63'}
+                    onChange={(e) => update(obj.id, { fill: e.target.value })}
+                  />
+                </div>
+                {(obj.kind === 'roundedRect' || obj.kind === 'container') && (
+                  <NumberField
+                    label="Corner radius"
+                    value={obj.cornerRadius}
+                    onCommit={(v) => update(obj.id, { cornerRadius: v })}
+                  />
+                )}
+              </div>
+            )}
+
+            <div className="section">
+              <span className="label">Layer</span>
+              <select className="field" value={obj.layerId} onChange={(e) => update(obj.id, { layerId: e.target.value })}>
+                {layers.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="section">
+              <div className="section-head">
+                <span className="label">Storage</span>
+                {!isContainer ? (
+                  <button
+                    className="btn"
+                    onClick={() =>
+                      setStorage(obj.id, {
+                        type: 'grid',
+                        rows: 2,
+                        cols: 2,
+                        rowFractions: [1, 1],
+                        colFractions: [1, 1],
+                        cells: {
+                          '0:0': { name: 'Bin 1', kind: 'drawer' },
+                          '0:1': { name: 'Bin 2', kind: 'drawer' },
+                          '1:0': { name: 'Bin 3', kind: 'drawer' },
+                          '1:1': { name: 'Bin 4', kind: 'drawer' },
+                        },
+                      })
+                    }
+                  >
+                    <Boxes size={14} /> Make shelf
+                  </button>
+                ) : (
+                  <button className="btn" onClick={() => setStorage(obj.id, { type: 'single' })}>
+                    Single space
+                  </button>
+                )}
+              </div>
+              {isContainer && <ShelfEditor obj={obj} />}
+            </div>
+
+            <div className="section">
+              <span className="label">Notes</span>
+              <textarea
+                className="field"
+                rows={3}
+                value={obj.notes}
+                placeholder="Optional notes…"
+                onChange={(e) => update(obj.id, { notes: e.target.value })}
               />
             </div>
-            {(obj.kind === 'roundedRect' || obj.kind === 'container') && (
-              <NumberField
-                label="Corner radius"
-                value={obj.cornerRadius}
-                onCommit={(v) => update(obj.id, { cornerRadius: v })}
-              />
+
+            {otherRooms.length > 0 && (
+              <div className="section">
+                <span className="label">Move to room</span>
+                <select
+                  className="field"
+                  value=""
+                  onChange={(e) => e.target.value && moveObjectToRoom(obj.id, e.target.value)}
+                >
+                  <option value="">Choose a room…</option>
+                  {otherRooms.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
             )}
-          </div>
+
+            <div className="inspector-actions">
+              <button className="btn" onClick={() => duplicate(obj.id)}>
+                <Copy size={14} /> Duplicate
+              </button>
+              <button className="btn danger" onClick={() => remove(obj.id)}>
+                <Trash2 size={14} /> Delete
+              </button>
+            </div>
+          </>
         )}
 
-        <div className="section">
-          <span className="label">Layer</span>
-          <select
-            className="field"
-            value={obj.layerId}
-            onChange={(e) => update(obj.id, { layerId: e.target.value })}
-          >
-            {layers.map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="section">
-          <div className="section-head">
-            <span className="label">Storage</span>
-            {!isContainer ? (
-              <button
-                className="btn"
-                onClick={() =>
-                  setStorage(obj.id, {
-                    type: 'grid',
-                    rows: 2,
-                    cols: 2,
-                    rowFractions: [1, 1],
-                    colFractions: [1, 1],
-                    cells: {
-                      '0:0': { name: 'Bin 1', kind: 'drawer' },
-                      '0:1': { name: 'Bin 2', kind: 'drawer' },
-                      '1:0': { name: 'Bin 3', kind: 'drawer' },
-                      '1:1': { name: 'Bin 4', kind: 'drawer' },
-                    },
-                  })
-                }
-              >
-                <Boxes size={14} /> Make shelf
-              </button>
-            ) : (
-              <button className="btn" onClick={() => setStorage(obj.id, { type: 'single' })}>
-                Single space
-              </button>
-            )}
-          </div>
-          {isContainer && <ShelfEditor obj={obj} />}
-        </div>
-
-        <div className="section">
-          <span className="label">Notes</span>
-          <textarea
-            className="field"
-            rows={3}
-            value={obj.notes}
-            placeholder="Optional notes…"
-            onChange={(e) => update(obj.id, { notes: e.target.value })}
-          />
-        </div>
-
-        {otherRooms.length > 0 && (
+        {!isDesign && obj.notes && (
           <div className="section">
-            <span className="label">Move to room</span>
-            <select
-              className="field"
-              value=""
-              onChange={(e) => e.target.value && moveObjectToRoom(obj.id, e.target.value)}
-            >
-              <option value="">
-                Choose a room…
-              </option>
-              {otherRooms.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name}
-                </option>
-              ))}
-            </select>
+            <span className="label">Notes</span>
+            <p className="hint">{obj.notes}</p>
           </div>
         )}
-
-        <div className="inspector-actions">
-          <button className="btn" onClick={() => duplicate(obj.id)}>
-            <Copy size={14} /> Duplicate
-          </button>
-          <button className="btn danger" onClick={() => remove(obj.id)}>
-            <Trash2 size={14} /> Delete
-          </button>
-        </div>
       </div>
     </div>
   );

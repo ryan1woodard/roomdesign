@@ -57,6 +57,88 @@
   background: var(--stroke);
   margin: 4px 4px;
 }
+
+/* ---------------- Save section ---------------- */
+.save-section {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+}
+.save-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-1);
+  color: var(--text-1);
+  border: 1px solid var(--stroke);
+  border-radius: var(--r-sm);
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+.save-btn:hover {
+  background: var(--bg-2);
+  border-color: var(--stroke-strong);
+}
+.save-status {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--text-2);
+  white-space: nowrap;
+}
+.save-dot {
+  font-size: 9px;
+  line-height: 1;
+}
+.save-status--saved {
+  color: var(--text-2);
+}
+.save-status--saving {
+  color: #e0b84c;
+}
+.save-status--unsaved {
+  color: #ff5d6c;
+}
+.save-status--error {
+  color: #ff5d6c;
+  font-weight: 600;
+}
+.save-tooltip {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  min-width: 240px;
+  border-radius: var(--r-md);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 20;
+  animation: fade-in 0.12s ease;
+}
+.save-tooltip-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+}
+.save-tooltip-row strong {
+  color: var(--text-2);
+  font-weight: 500;
+}
+.save-tooltip-row span {
+  color: var(--text-0);
+  text-align: right;
+}
+.save-tooltip-error span {
+  color: #ff5d6c;
+}
 .unit-select {
   background: var(--bg-1);
   color: var(--text-1);
@@ -928,22 +1010,54 @@
   background: rgba(255, 93, 108, 0.1);
 }
 
-/* Hint bar */
-.hint-bar {
+/* Status bar */
+.status-bar {
   position: absolute;
   bottom: 16px;
-  left: 50%;
-  transform: translateX(-50%);
+  left: 16px;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   font-size: 12px;
   color: var(--text-2);
-  background: var(--panel);
-  backdrop-filter: blur(10px);
-  padding: 7px 16px;
+  padding: 8px 16px;
   border-radius: 20px;
-  border: 1px solid var(--stroke);
   pointer-events: none;
+  overflow: hidden;
+}
+.status-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
   white-space: nowrap;
-  transition: opacity 0.2s;
+  flex-shrink: 0;
+}
+.status-mode {
+  color: var(--text-1);
+  font-weight: 600;
+}
+.status-divider {
+  width: 1px;
+  height: 12px;
+  background: var(--stroke);
+  flex-shrink: 0;
+}
+.status-cursor {
+  font-variant-numeric: tabular-nums;
+}
+.status-selection {
+  color: var(--text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.status-hint {
+  margin-left: auto;
+  color: var(--text-2);
+  opacity: 0.8;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* ---------------- Room Navigator ---------------- */
@@ -984,9 +1098,10 @@
 .room-row-body {
   flex: 1;
   min-width: 0;
+  position: relative;
+  height: 32px;
   display: flex;
-  flex-direction: column;
-  gap: 1px;
+  align-items: center;
 }
 .room-name {
   font-size: 13px;
@@ -1000,22 +1115,43 @@
   color: var(--text-2);
 }
 /*
- * Collapsed to zero width (not just opacity/pointer-events) when hidden.
- * A hidden-but-present overlay would otherwise sit on top of the room name
- * and steal the click meant for selecting the room, since the mouse hovers
- * the row (revealing these actions) as a normal part of clicking it.
+ * Name/meta and action icons occupy the exact same slot, absolutely
+ * stacked, and crossfade via opacity only — the row's width/height never
+ * changes on hover, and the hidden layer is pointer-events:none so it never
+ * steals the click meant for the visible one.
  */
-.room-actions {
-  flex-shrink: 0;
+.room-row-info,
+.room-row-actions-slot {
+  position: absolute;
+  inset: 0;
   display: flex;
-  max-width: 0;
-  overflow: hidden;
-  opacity: 0;
-  transition: max-width 0.15s ease, opacity 0.15s ease;
+  align-items: center;
+  transition: opacity 0.15s ease;
 }
-.room-row:hover .room-actions {
-  max-width: 140px;
+.room-row-info {
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  min-width: 0;
   opacity: 1;
+  pointer-events: auto;
+}
+.room-row-info .room-name,
+.room-row-info .room-meta {
+  width: 100%;
+}
+.room-row-actions-slot {
+  gap: 4px;
+  opacity: 0;
+  pointer-events: none;
+}
+.room-row.interactive:hover .room-row-info {
+  opacity: 0;
+  pointer-events: none;
+}
+.room-row.interactive:hover .room-row-actions-slot {
+  opacity: 1;
+  pointer-events: auto;
 }
 .panel-subhead {
   display: flex;
@@ -1202,4 +1338,277 @@
   100% {
     transform: translateX(350%);
   }
+}
+
+/* ---------------- Inventory log viewer ---------------- */
+.log-viewer {
+  width: min(640px, 92vw);
+  height: min(78vh, 760px);
+  background: var(--panel-solid);
+  border: 1px solid var(--stroke-strong);
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow-2);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.log-viewer-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--stroke);
+}
+.log-viewer-head h3 {
+  margin: 0;
+  font-size: 16px;
+}
+.log-viewer-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--stroke);
+}
+.log-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-1);
+  border: 1px solid var(--stroke);
+  border-radius: var(--r-sm);
+  padding: 6px 10px;
+  color: var(--text-2);
+}
+.log-search .field {
+  flex: 1;
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--text-0);
+}
+.log-scope-tabs {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.log-scope-tab {
+  font-size: 12px;
+  padding: 5px 10px;
+  border-radius: 14px;
+  color: var(--text-2);
+  background: var(--bg-1);
+  border: 1px solid var(--stroke);
+}
+.log-scope-tab:hover {
+  color: var(--text-0);
+}
+.log-scope-tab.active {
+  color: var(--text-0);
+  background: var(--accent-soft);
+  border-color: rgba(79, 140, 255, 0.5);
+}
+.log-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 18px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.log-entry {
+  padding: 10px 12px;
+  border-radius: var(--r-sm);
+  background: var(--bg-1);
+  border: 1px solid var(--stroke);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.log-entry-main {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  font-size: 13px;
+}
+.log-entry-user {
+  font-weight: 700;
+  color: var(--text-0);
+}
+.log-entry-action {
+  color: var(--text-2);
+}
+.log-entry-subject {
+  font-weight: 600;
+  color: var(--text-0);
+}
+.log-entry-room {
+  color: var(--text-2);
+}
+.log-entry-diff {
+  display: flex;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-2);
+}
+.log-entry-prev {
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+.log-entry-new {
+  color: var(--ok);
+}
+.log-entry-detail {
+  font-size: 12px;
+  color: var(--text-2);
+}
+.log-entry-time {
+  font-size: 11px;
+  color: var(--text-2);
+  opacity: 0.7;
+}
+
+/* ---------------- Login screen ---------------- */
+.login-screen {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(1200px 800px at 70% -10%, #17203a 0%, var(--bg-0) 55%);
+  color: var(--text-0);
+}
+.login-card {
+  width: min(360px, 90vw);
+  padding: 28px 24px;
+  border-radius: var(--r-xl);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+}
+.login-sub {
+  font-size: 13px;
+  color: var(--text-2);
+  margin: 0 0 10px;
+}
+.login-form {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+}
+.login-submit {
+  justify-content: center;
+  margin-top: 8px;
+}
+.login-cancel {
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--text-2);
+}
+.login-known-list {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+.login-known-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--stroke);
+  background: var(--bg-1);
+  text-align: left;
+  transition: background 0.12s, border-color 0.12s;
+}
+.login-known-row:hover {
+  background: var(--bg-2);
+  border-color: var(--stroke-strong);
+}
+.login-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+.login-known-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.login-known-name {
+  font-size: 13px;
+  font-weight: 600;
+}
+.login-known-email {
+  font-size: 11px;
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.login-other-btn {
+  justify-content: center;
+  margin-top: 4px;
+  background: none;
+  border: 1px dashed var(--stroke-strong);
+  color: var(--text-2);
+}
+
+/* ---------------- User menu ---------------- */
+.user-menu {
+  position: relative;
+}
+.user-menu-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-1);
+  border: 1px solid var(--stroke);
+  border-radius: var(--r-sm);
+  padding: 5px 10px 5px 6px;
+  color: var(--text-1);
+}
+.user-menu-btn:hover {
+  background: var(--bg-2);
+  border-color: var(--stroke-strong);
+}
+.user-menu-name {
+  font-size: 12px;
+  font-weight: 600;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.user-menu-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 200px;
+  border-radius: var(--r-md);
+  padding: 8px;
+  z-index: 30;
+  animation: fade-in 0.12s ease;
+}
+.user-menu-email {
+  font-size: 12px;
+  color: var(--text-2);
+  padding: 4px 8px 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

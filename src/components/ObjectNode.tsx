@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Group, Rect, Ellipse, Text, Circle } from 'react-konva';
 import Konva from 'konva';
-import type { RoomObject } from '../types';
+import type { RoomObject, AppMode } from '../types';
 import { gridCells, cellName, cellKind } from '../lib/shelf';
 
 const LABEL_GAP = 6; // px, screen-space gap between object's top edge and its label
@@ -21,6 +21,8 @@ interface Props {
   snapIn: number | null; // grid snap step in inches, or null
   zoomScale: number; // current stage zoom (cam.scale)
   showAllLabels: boolean;
+  /** Design Mode moves/resizes/rotates furniture; Inventory Mode opens it instead. */
+  mode: AppMode;
   registerNode: (id: string, node: Konva.Group | null) => void;
   onSelect: (id: string, additive: boolean) => void;
   onOpenCell: (id: string, cellKey: string) => void;
@@ -60,6 +62,7 @@ export default function ObjectNode({
   snapIn,
   zoomScale,
   showAllLabels,
+  mode,
   registerNode,
   onSelect,
   onOpenCell,
@@ -154,7 +157,7 @@ export default function ObjectNode({
         offsetX={w / 2}
         offsetY={h / 2}
         rotation={obj.rotation}
-        draggable
+        draggable={mode === 'design'}
         opacity={dimmed ? 0.35 : 1}
         onMouseEnter={() => {
           hoverRef.current = true;
@@ -181,11 +184,13 @@ export default function ObjectNode({
         }}
         onDblClick={(e) => {
           e.cancelBubble = true;
+          if (mode !== 'inventory') return;
           if (isContainer) onOpenPicker(obj.id);
           else onOpenCell(obj.id, 'surface');
         }}
         onDblTap={(e) => {
           e.cancelBubble = true;
+          if (mode !== 'inventory') return;
           if (isContainer) onOpenPicker(obj.id);
           else onOpenCell(obj.id, 'surface');
         }}
@@ -258,10 +263,12 @@ export default function ObjectNode({
                   strokeWidth={1}
                   onDblClick={(e) => {
                     e.cancelBubble = true;
+                    if (mode !== 'inventory') return;
                     onOpenCell(obj.id, c.key);
                   }}
                   onDblTap={(e) => {
                     e.cancelBubble = true;
+                    if (mode !== 'inventory') return;
                     onOpenCell(obj.id, c.key);
                   }}
                 />

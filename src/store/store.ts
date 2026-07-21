@@ -16,6 +16,13 @@ import type {
   WallSegment,
   WallOpening,
   CameraState,
+  User,
+  LogEntry,
+  LogScope,
+  LogAction,
+  SaveStatus,
+  ProjectMeta,
+  AppMode,
 } from '../types';
 import { buildDemo } from './demo';
 import {
@@ -28,15 +35,41 @@ import {
   mergeWalls as libMergeWalls,
   wallVector,
 } from '../lib/walls';
+import { cellName } from '../lib/shelf';
 
 localforage.config({ name: 'srs-lab-designer', storeName: 'state' });
 
 const RECOVERY_KEY = 'srs-lab-designer-recovery';
 
+/**
+ * Save-status bookkeeping deliberately lives in its own tiny store, NOT in
+ * the persisted `useStore`. Zustand's `persist` middleware re-triggers a
+ * storage write on every single `setState` call (it doesn't diff), so if
+ * status updates went through `useStore.setState` they'd immediately
+ * re-trigger persist's own write, which flips status again, which
+ * re-triggers persist again — an infinite loop that pegs the main thread.
+ * A separate, unwrapped store can't feed back into persist's write cycle.
+ */
+export const useSaveStore = create<{
+  saveStatus: SaveStatus;
+  saveError: string | null;
+  lastSavedAt: number | null;
+}>(() => ({
+  saveStatus: 'saved',
+  saveError: null,
+  lastSavedAt: null,
+}));
+
 const lfStorage = {
   getItem: async (name: string) => (await localforage.getItem<string>(name)) ?? null,
   setItem: async (name: string, value: string) => {
-    await localforage.setItem(name, value);
+    useSaveStore.setState({ saveStatus: 'saving' });
+    try {
+      await localforage.setItem(name, value);
+      useSaveStore.setState({ saveStatus: 'saved', lastSavedAt: Date.now(), saveError: null });
+    } catch (err) {
+      useSaveStore.setState({ saveStatus: 'error', saveError: err instanceof Error ? err.message : String(err) });
+    }
   },
   removeItem: async (name: string) => {
     await localforage.removeItem(name);
@@ -47,6 +80,20 @@ interface Doc {
   rooms: Record<string, Room>;
   roomOrder: string[];
   tags: Record<string, Tag>;
+}
+
+/**
+ * Everything written to durable storage (the main IndexedDB key and every
+ * recovery snapshot). Kept as one named shape so both write sites and the
+ * restore path can't silently drift apart from each other.
+ */
+interface PersistedState extends Doc {
+  activeRoomId: string;
+  settings: Settings;
+  currentUser: User | null;
+  knownUsers: User[];
+  projectMeta: ProjectMeta;
+  activityLog: LogEntry[];
 }
 
 export type WallTool = 'select' | 'draw' | 'door' | 'window';
@@ -67,6 +114,15 @@ interface AppState extends Doc {
   activeRoomId: string;
   settings: Settings;
 
+  // Device identity + project metadata (persisted)
+  currentUser: User | null;
+  knownUsers: User[];
+  projectMeta: ProjectMeta;
+  activityLog: LogEntry[];
+
+  // Save status lives in `useSaveStore` (see its definition for why).
+  _manualSaveNonce: number;
+
   // Transient (not persisted)
   selection: string[];
   openLocation: LocationRef | null;
@@ -76,6 +132,9 @@ interface AppState extends Doc {
   inspectItemId: string | null;
   contextMenu: ContextMenuState | null;
   clipboard: Clipboard | null;
+  logViewerOpen: boolean;
+  logSearch: string;
+  logScopeFilter: LogScope | 'all';
 
   wallTool: WallTool;
   wallDraft: { startVertexId: string; lastVertexId: string } | null;
@@ -97,6 +156,20 @@ interface AppState extends Doc {
   toggleShowAllLabels: () => void;
   setWallThicknessDefault: (v: number) => void;
   toggleWallAngleSnap: () => void;
+  setMode: (mode: AppMode) => void;
+
+  // User / session
+  loginUser: (name: string, email: string) => void;
+  logout: () => void;
+
+  // Save
+  saveNow: () => void;
+
+  // Activity / inventory log
+  openLogViewer: () => void;
+  closeLogViewer: () => void;
+  setLogSearch: (q: string) => void;
+  setLogScopeFilter: (scope: LogScope | 'all') => void;
 
   // Room actions
   addRoom: (name?: string) => string;
@@ -180,7 +253,6 @@ interface AppState extends Doc {
   redo: () => void;
 
   restoreFromRecovery: () => Promise<boolean>;
-  resetAll: () => void;
   requestFitToView: () => void;
 }
 
@@ -217,6 +289,46 @@ function mutateActiveRoom(s: AppState, historyKey: string, fn: (room: Room) => R
 
 function recomputeFloors(room: Room): Room {
   return { ...room, floors: computeFloors(room.vertices, room.walls) };
+}
+
+const LOG_COALESCE_MS = 4000;
+const LOG_MAX_ENTRIES = 500;
+
+interface LogInput {
+  scope: LogScope;
+  action: LogAction;
+  entityId: string;
+  subject: string;
+  roomId?: string;
+  roomName?: string;
+  previousValue?: string;
+  newValue?: string;
+  detail?: string;
+}
+
+/**
+ * Append an attributed log entry, or — if the most recent entry is about the
+ * same thing within a few seconds — fold into it instead. This turns a burst
+ * of rapid edits (typing a name, clicking a quantity stepper) into a single
+ * entry that reads "changed 4 → 9" rather than five near-identical rows.
+ */
+function pushLogEntry(s: AppState, input: LogInput): Partial<AppState> {
+  const userName = s.currentUser?.name ?? 'Unknown user';
+  const userEmail = s.currentUser?.email ?? '';
+  const now = Date.now();
+  const top = s.activityLog[0];
+  if (top && top.entityId === input.entityId && top.action === input.action && top.scope === input.scope && now - top.timestamp < LOG_COALESCE_MS) {
+    const merged: LogEntry = {
+      ...top,
+      timestamp: now,
+      subject: input.subject,
+      newValue: input.newValue ?? top.newValue,
+      detail: input.detail ?? top.detail,
+    };
+    return { activityLog: [merged, ...s.activityLog.slice(1)] };
+  }
+  const entry: LogEntry = { id: `log-${nanoid(8)}`, timestamp: now, userName, userEmail, ...input };
+  return { activityLog: [entry, ...s.activityLog].slice(0, LOG_MAX_ENTRIES) };
 }
 
 const DEFAULT_FILL = '#3b4a63';
@@ -334,7 +446,15 @@ export const useStore = create<AppState>()(
         showAllLabels: false,
         wallThickness: 6,
         wallAngleSnap: true,
+        mode: 'design',
       },
+
+      currentUser: null,
+      knownUsers: [],
+      projectMeta: { id: `project-${nanoid(8)}`, name: 'My Project', createdAt: Date.now() },
+      activityLog: [],
+
+      _manualSaveNonce: 0,
 
       selection: [],
       openLocation: null,
@@ -344,6 +464,9 @@ export const useStore = create<AppState>()(
       inspectItemId: null,
       contextMenu: null,
       clipboard: null,
+      logViewerOpen: false,
+      logSearch: '',
+      logScopeFilter: 'all',
 
       wallTool: 'select',
       wallDraft: null,
@@ -364,11 +487,41 @@ export const useStore = create<AppState>()(
       toggleShowAllLabels: () => set((s) => ({ settings: { ...s.settings, showAllLabels: !s.settings.showAllLabels } })),
       setWallThicknessDefault: (v) => set((s) => ({ settings: { ...s.settings, wallThickness: Math.max(1, v) } })),
       toggleWallAngleSnap: () => set((s) => ({ settings: { ...s.settings, wallAngleSnap: !s.settings.wallAngleSnap } })),
+      setMode: (mode) =>
+        set((s) => ({
+          settings: { ...s.settings, mode },
+          // Leaving a mode clears state that only makes sense in the other one.
+          selection: [],
+          wallSelection: null,
+          wallDraft: null,
+          wallTool: 'select',
+          openLocation: mode === 'design' ? null : s.openLocation,
+          pickerObjectId: mode === 'design' ? null : s.pickerObjectId,
+        })),
+
+      loginUser: (name, email) =>
+        set((s) => {
+          const trimmedName = name.trim();
+          const trimmedEmail = email.trim().toLowerCase();
+          const existing = s.knownUsers.find((u) => u.email.toLowerCase() === trimmedEmail);
+          const user: User = existing ? { ...existing, name: trimmedName } : { id: `user-${nanoid(8)}`, name: trimmedName, email: trimmedEmail };
+          const knownUsers = [user, ...s.knownUsers.filter((u) => u.email.toLowerCase() !== trimmedEmail)].slice(0, 8);
+          return { currentUser: user, knownUsers };
+        }),
+      logout: () => set({ currentUser: null }),
+
+      saveNow: () => set((s) => ({ _manualSaveNonce: s._manualSaveNonce + 1 })),
+
+      openLogViewer: () => set({ logViewerOpen: true }),
+      closeLogViewer: () => set({ logViewerOpen: false }),
+      setLogSearch: (q) => set({ logSearch: q }),
+      setLogScopeFilter: (scope) => set({ logScopeFilter: scope }),
 
       addRoom: (name) => {
         const room = emptyRoom(name?.trim() || 'New Room');
         set((s) => ({
           ...withHistory(s, 'add-room'),
+          ...pushLogEntry(s, { scope: 'room', action: 'created', entityId: room.id, subject: room.name, roomId: room.id, roomName: room.name }),
           rooms: { ...s.rooms, [room.id]: { ...room, order: s.roomOrder.length } },
           roomOrder: [...s.roomOrder, room.id],
           activeRoomId: room.id,
@@ -383,18 +536,24 @@ export const useStore = create<AppState>()(
       renameRoom: (id, name) =>
         set((s) => {
           const room = s.rooms[id];
-          if (!room) return {};
-          return { ...withHistory(s, 'rename-room:' + id), rooms: { ...s.rooms, [id]: { ...room, name: name || room.name } } };
+          if (!room || !name || name === room.name) return {};
+          return {
+            ...withHistory(s, 'rename-room:' + id),
+            ...pushLogEntry(s, { scope: 'room', action: 'renamed', entityId: id, subject: name, roomId: id, roomName: name, previousValue: room.name, newValue: name }),
+            rooms: { ...s.rooms, [id]: { ...room, name } },
+          };
         }),
       deleteRoom: (id) =>
         set((s) => {
           if (s.roomOrder.length <= 1) return {};
+          const room = s.rooms[id];
           const rooms = { ...s.rooms };
           delete rooms[id];
           const roomOrder = s.roomOrder.filter((r) => r !== id);
           const activeRoomId = s.activeRoomId === id ? roomOrder[0] : s.activeRoomId;
           return {
             ...withHistory(s, 'del-room'),
+            ...(room ? pushLogEntry(s, { scope: 'room', action: 'deleted', entityId: id, subject: room.name }) : {}),
             rooms,
             roomOrder,
             activeRoomId,
@@ -409,6 +568,7 @@ export const useStore = create<AppState>()(
         const clone = cloneRoomWithNewIds(src, `${src.name} copy`);
         set((s) => ({
           ...withHistory(s, 'dup-room'),
+          ...pushLogEntry(s, { scope: 'room', action: 'created', entityId: clone.id, subject: clone.name, roomId: clone.id, roomName: clone.name, detail: `Duplicated from "${src.name}"` }),
           rooms: { ...s.rooms, [clone.id]: { ...clone, order: s.roomOrder.length } },
           roomOrder: [...s.roomOrder, clone.id],
           activeRoomId: clone.id,
@@ -557,25 +717,49 @@ export const useStore = create<AppState>()(
         return id;
       },
       updateObject: (id, patch) =>
-        set((s) =>
-          mutateActiveRoom(s, 'upd-obj:' + id, (room) => {
-            const cur = room.objects[id];
-            if (!cur) return room;
-            return { ...room, objects: { ...room.objects, [id]: { ...cur, ...patch } } };
-          }),
-        ),
+        set((s) => {
+          const room = s.rooms[s.activeRoomId];
+          const cur = room?.objects[id];
+          const roomPatch = mutateActiveRoom(s, 'upd-obj:' + id, (r) => {
+            const c = r.objects[id];
+            if (!c) return r;
+            return { ...r, objects: { ...r.objects, [id]: { ...c, ...patch } } };
+          });
+          if (cur && room && patch.name !== undefined && patch.name !== cur.name) {
+            return {
+              ...roomPatch,
+              ...pushLogEntry(s, {
+                scope: 'object',
+                action: 'renamed',
+                entityId: id,
+                subject: patch.name,
+                roomId: room.id,
+                roomName: room.name,
+                previousValue: cur.name,
+                newValue: patch.name,
+              }),
+            };
+          }
+          return roomPatch;
+        }),
       removeObject: (id) => {
-        set((s) =>
-          mutateActiveRoom(s, 'del-obj', (room) => {
-            const objects = { ...room.objects };
+        set((s) => {
+          const room = s.rooms[s.activeRoomId];
+          const cur = room?.objects[id];
+          const roomPatch = mutateActiveRoom(s, 'del-obj', (r) => {
+            const objects = { ...r.objects };
             delete objects[id];
-            const items = { ...room.items };
-            for (const it of Object.values(room.items)) {
+            const items = { ...r.items };
+            for (const it of Object.values(r.items)) {
               if (it.objectId === id) delete items[it.id];
             }
-            return { ...room, objects, items };
-          }),
-        );
+            return { ...r, objects, items };
+          });
+          if (cur && room) {
+            return { ...roomPatch, ...pushLogEntry(s, { scope: 'object', action: 'deleted', entityId: id, subject: cur.name, roomId: room.id, roomName: room.name }) };
+          }
+          return roomPatch;
+        });
         set((s) => ({ selection: s.selection.filter((x) => x !== id) }));
       },
       duplicateObject: (id) => {
@@ -688,15 +872,17 @@ export const useStore = create<AppState>()(
 
       addItem: (loc, patch) => {
         const id = `item-${nanoid(8)}`;
-        set((s) =>
-          mutateActiveRoom(s, 'add-item:' + id, (room) => {
+        set((s) => {
+          const room = s.rooms[s.activeRoomId];
+          const name = patch?.name ?? 'New item';
+          const roomPatch = mutateActiveRoom(s, 'add-item:' + id, (r) => {
             const now = Date.now();
-            const siblings = Object.values(room.items).filter(
+            const siblings = Object.values(r.items).filter(
               (i) => i.objectId === loc.objectId && i.cellKey === loc.cellKey,
             );
             const item: Item = {
               id,
-              name: patch?.name ?? 'New item',
+              name,
               quantity: patch?.quantity ?? 1,
               tagIds: patch?.tagIds ?? [],
               image: patch?.image,
@@ -707,45 +893,107 @@ export const useStore = create<AppState>()(
               order: siblings.length,
               ...patch,
             };
-            return { ...room, items: { ...room.items, [id]: item } };
-          }),
-        );
+            return { ...r, items: { ...r.items, [id]: item } };
+          });
+          if (!room) return roomPatch;
+          return {
+            ...roomPatch,
+            ...pushLogEntry(s, { scope: 'inventory', action: 'created', entityId: id, subject: name, roomId: room.id, roomName: room.name }),
+          };
+        });
         return id;
       },
       updateItem: (id, patch) =>
-        set((s) =>
-          mutateActiveRoom(s, 'upd-item:' + id, (room) => {
-            const cur = room.items[id];
-            if (!cur) return room;
-            return { ...room, items: { ...room.items, [id]: { ...cur, ...patch, updatedAt: Date.now() } } };
-          }),
-        ),
+        set((s) => {
+          const room = s.rooms[s.activeRoomId];
+          const cur = room?.items[id];
+          const roomPatch = mutateActiveRoom(s, 'upd-item:' + id, (r) => {
+            const c = r.items[id];
+            if (!c) return r;
+            return { ...r, items: { ...r.items, [id]: { ...c, ...patch, updatedAt: Date.now() } } };
+          });
+          if (!cur || !room) return roomPatch;
+
+          const base = { roomId: room.id, roomName: room.name };
+          if (patch.quantity !== undefined && patch.quantity !== cur.quantity) {
+            return {
+              ...roomPatch,
+              ...pushLogEntry(s, { scope: 'inventory', action: 'quantity_changed', entityId: id, subject: cur.name, ...base, previousValue: String(cur.quantity), newValue: String(patch.quantity) }),
+            };
+          }
+          if (patch.name !== undefined && patch.name !== cur.name) {
+            return {
+              ...roomPatch,
+              ...pushLogEntry(s, { scope: 'inventory', action: 'renamed', entityId: id, subject: patch.name, ...base, previousValue: cur.name, newValue: patch.name }),
+            };
+          }
+          if (patch.notes !== undefined && patch.notes !== cur.notes) {
+            return {
+              ...roomPatch,
+              ...pushLogEntry(s, { scope: 'inventory', action: 'notes_edited', entityId: id, subject: cur.name, ...base }),
+            };
+          }
+          const meaningfulKeys = Object.keys(patch).filter((k) => !['name', 'quantity', 'notes', 'updatedAt'].includes(k));
+          if (meaningfulKeys.length) {
+            return {
+              ...roomPatch,
+              ...pushLogEntry(s, { scope: 'inventory', action: 'edited', entityId: id, subject: cur.name, ...base }),
+            };
+          }
+          return roomPatch;
+        }),
       removeItem: (id) =>
-        set((s) => ({
-          ...mutateActiveRoom(s, 'del-item', (room) => {
-            const items = { ...room.items };
+        set((s) => {
+          const room = s.rooms[s.activeRoomId];
+          const cur = room?.items[id];
+          const roomPatch = mutateActiveRoom(s, 'del-item', (r) => {
+            const items = { ...r.items };
             delete items[id];
-            return { ...room, items };
-          }),
-          inspectItemId: s.inspectItemId === id ? null : s.inspectItemId,
-        })),
+            return { ...r, items };
+          });
+          return {
+            ...roomPatch,
+            ...(cur && room ? pushLogEntry(s, { scope: 'inventory', action: 'deleted', entityId: id, subject: cur.name, roomId: room.id, roomName: room.name }) : {}),
+            inspectItemId: s.inspectItemId === id ? null : s.inspectItemId,
+          };
+        }),
       moveItem: (id, loc) =>
-        set((s) =>
-          mutateActiveRoom(s, 'move-item', (room) => {
-            const cur = room.items[id];
-            if (!cur) return room;
-            const siblings = Object.values(room.items).filter(
+        set((s) => {
+          const room = s.rooms[s.activeRoomId];
+          const cur = room?.items[id];
+          const roomPatch = mutateActiveRoom(s, 'move-item', (r) => {
+            const c = r.items[id];
+            if (!c) return r;
+            const siblings = Object.values(r.items).filter(
               (i) => i.objectId === loc.objectId && i.cellKey === loc.cellKey && i.id !== id,
             );
             return {
-              ...room,
+              ...r,
               items: {
-                ...room.items,
-                [id]: { ...cur, objectId: loc.objectId, cellKey: loc.cellKey, order: siblings.length, updatedAt: Date.now() },
+                ...r.items,
+                [id]: { ...c, objectId: loc.objectId, cellKey: loc.cellKey, order: siblings.length, updatedAt: Date.now() },
               },
             };
-          }),
-        ),
+          });
+          if (!cur || !room) return roomPatch;
+          const fromObj = room.objects[cur.objectId];
+          const toObj = room.objects[loc.objectId];
+          const fromLabel = fromObj ? `${fromObj.name} · ${cellName(fromObj, cur.cellKey)}` : 'Unknown';
+          const toLabel = toObj ? `${toObj.name} · ${cellName(toObj, loc.cellKey)}` : 'Unknown';
+          return {
+            ...roomPatch,
+            ...pushLogEntry(s, {
+              scope: 'inventory',
+              action: 'moved',
+              entityId: id,
+              subject: cur.name,
+              roomId: room.id,
+              roomName: room.name,
+              previousValue: fromLabel,
+              newValue: toLabel,
+            }),
+          };
+        }),
       moveItemToRoom: (itemId, toRoomId, loc) =>
         set((s) => {
           const fromRoom = s.rooms[s.activeRoomId];
@@ -759,8 +1007,23 @@ export const useStore = create<AppState>()(
           const fromItems = { ...fromRoom.items };
           delete fromItems[itemId];
 
+          const fromObj = fromRoom.objects[item.objectId];
+          const toObj = toRoom.objects[loc.objectId];
+          const fromLabel = fromObj ? `${fromRoom.name} · ${fromObj.name} · ${cellName(fromObj, item.cellKey)}` : fromRoom.name;
+          const toLabel = toObj ? `${toRoom.name} · ${toObj.name} · ${cellName(toObj, loc.cellKey)}` : toRoom.name;
+
           return {
             ...withHistory(s, 'move-item-room'),
+            ...pushLogEntry(s, {
+              scope: 'inventory',
+              action: 'moved',
+              entityId: itemId,
+              subject: item.name,
+              roomId: toRoom.id,
+              roomName: toRoom.name,
+              previousValue: fromLabel,
+              newValue: toLabel,
+            }),
             rooms: {
               ...s.rooms,
               [fromRoom.id]: { ...fromRoom, items: fromItems },
@@ -899,12 +1162,13 @@ export const useStore = create<AppState>()(
           }),
         ),
       deleteWall: (wallId) =>
-        set((s) => ({
-          ...mutateActiveRoom(s, 'del-wall', (room) => {
-            const walls = { ...room.walls };
+        set((s) => {
+          const room = s.rooms[s.activeRoomId];
+          const roomPatch = mutateActiveRoom(s, 'del-wall', (r) => {
+            const walls = { ...r.walls };
             delete walls[wallId];
-            const openings = { ...room.openings };
-            for (const o of Object.values(room.openings)) {
+            const openings = { ...r.openings };
+            for (const o of Object.values(r.openings)) {
               if (o.wallId === wallId) delete openings[o.id];
             }
             // Drop vertices left with no remaining wall connections.
@@ -913,14 +1177,18 @@ export const useStore = create<AppState>()(
               stillConnected.add(w.a);
               stillConnected.add(w.b);
             }
-            const vertices = { ...room.vertices };
+            const vertices = { ...r.vertices };
             for (const vid of Object.keys(vertices)) {
               if (!stillConnected.has(vid)) delete vertices[vid];
             }
-            return recomputeFloors({ ...room, walls, openings, vertices });
-          }),
-          wallSelection: null,
-        })),
+            return recomputeFloors({ ...r, walls, openings, vertices });
+          });
+          return {
+            ...roomPatch,
+            ...(room && room.walls[wallId] ? pushLogEntry(s, { scope: 'wall', action: 'deleted', entityId: wallId, subject: 'Wall', roomId: room.id, roomName: room.name }) : {}),
+            wallSelection: null,
+          };
+        }),
       splitWallAt: (wallId, t) =>
         set((s) =>
           mutateActiveRoom(s, 'split-wall', (room) => {
@@ -957,18 +1225,24 @@ export const useStore = create<AppState>()(
         ),
       addOpening: (wallId, kind, t) => {
         const id = `open-${nanoid(8)}`;
-        set((s) =>
-          mutateActiveRoom(s, 'add-opening', (room) => {
-            const wall = room.walls[wallId];
-            if (!wall) return room;
-            const length = wallVector(wall, room.vertices).length || 1;
+        set((s) => {
+          const room = s.rooms[s.activeRoomId];
+          const roomPatch = mutateActiveRoom(s, 'add-opening', (r) => {
+            const wall = r.walls[wallId];
+            if (!wall) return r;
+            const length = wallVector(wall, r.vertices).length || 1;
             const width = Math.min(kind === 'door' ? 32 : 30, length * 0.6);
             const halfT = width / 2 / length;
             const clampedT = Math.max(halfT + 0.02, Math.min(1 - halfT - 0.02, t));
             const opening: WallOpening = { id, wallId, kind, t: clampedT, width };
-            return { ...room, openings: { ...room.openings, [id]: opening } };
-          }),
-        );
+            return { ...r, openings: { ...r.openings, [id]: opening } };
+          });
+          if (!room) return roomPatch;
+          return {
+            ...roomPatch,
+            ...pushLogEntry(s, { scope: 'wall', action: 'created', entityId: id, subject: kind === 'door' ? 'Door' : 'Window', roomId: room.id, roomName: room.name }),
+          };
+        });
         set({ wallSelection: { type: 'opening', id }, wallTool: 'select' });
         return id;
       },
@@ -993,14 +1267,20 @@ export const useStore = create<AppState>()(
           }),
         ),
       removeOpening: (id) =>
-        set((s) => ({
-          ...mutateActiveRoom(s, 'del-opening', (room) => {
-            const openings = { ...room.openings };
+        set((s) => {
+          const room = s.rooms[s.activeRoomId];
+          const cur = room?.openings[id];
+          const roomPatch = mutateActiveRoom(s, 'del-opening', (r) => {
+            const openings = { ...r.openings };
             delete openings[id];
-            return { ...room, openings };
-          }),
-          wallSelection: null,
-        })),
+            return { ...r, openings };
+          });
+          return {
+            ...roomPatch,
+            ...(cur && room ? pushLogEntry(s, { scope: 'wall', action: 'deleted', entityId: id, subject: cur.kind === 'door' ? 'Door' : 'Window', roomId: room.id, roomName: room.name }) : {}),
+            wallSelection: null,
+          };
+        }),
 
       undo: () =>
         set((s) => {
@@ -1033,14 +1313,10 @@ export const useStore = create<AppState>()(
         const raw = await localforage.getItem<string>(RECOVERY_KEY);
         if (!raw) return false;
         try {
-          const parsed = JSON.parse(raw) as { state: Doc & { activeRoomId: string; settings: Settings } };
+          const parsed = JSON.parse(raw) as { state: PersistedState };
           set((s) => ({
             ...withHistory(s, 'restore-recovery'),
-            rooms: parsed.state.rooms,
-            roomOrder: parsed.state.roomOrder,
-            tags: parsed.state.tags,
-            activeRoomId: parsed.state.activeRoomId,
-            settings: parsed.state.settings,
+            ...parsed.state,
           }));
           return true;
         } catch {
@@ -1048,32 +1324,27 @@ export const useStore = create<AppState>()(
         }
       },
 
-      resetAll: () =>
-        set((s) => ({
-          ...withHistory(s, 'reset'),
-          ...buildDemo(),
-          selection: [],
-          openLocation: null,
-          pickerObjectId: null,
-          inspectItemId: null,
-          search: '',
-          wallSelection: null,
-          wallDraft: null,
-          wallTool: 'select',
-        })),
       requestFitToView: () => set({ fitToViewToken: Date.now() }),
     }),
     {
       name: 'srs-lab-designer-doc',
-      version: 1,
+      version: 2,
       storage: createJSONStorage(() => lfStorage),
-      // Persist only the document + user settings — never transient UI or history.
-      partialize: (s) => ({
+      // Persist the full project + device state — everything a user would
+      // expect to survive a reload: rooms/walls/floors/furniture/inventory,
+      // settings (including mode), the device's remembered users, the
+      // activity log, and project metadata. Never transient UI or undo
+      // history — see the audit in PersistedState below.
+      partialize: (s): PersistedState => ({
         rooms: s.rooms,
         roomOrder: s.roomOrder,
         activeRoomId: s.activeRoomId,
         tags: s.tags,
         settings: s.settings,
+        currentUser: s.currentUser,
+        knownUsers: s.knownUsers,
+        projectMeta: s.projectMeta,
+        activityLog: s.activityLog,
       }),
     },
   ),
@@ -1082,6 +1353,19 @@ export const useStore = create<AppState>()(
 export function useActiveRoom(): Room {
   return useStore((s) => s.rooms[s.activeRoomId]);
 }
+
+// Flip the indicator to "unsaved" the instant a persisted-worthy mutation
+// happens (a `_rev` bump), so it never sits on a stale "saved" while the
+// persist middleware's async write to IndexedDB is still in flight. This
+// writes to the separate `useSaveStore`, never back into `useStore` — see
+// that store's definition for why that separation matters.
+let lastRevForSaveStatus = useStore.getState()._rev;
+useStore.subscribe((state) => {
+  if (state._rev !== lastRevForSaveStatus) {
+    lastRevForSaveStatus = state._rev;
+    if (useSaveStore.getState().saveStatus !== 'saving') useSaveStore.setState({ saveStatus: 'unsaved' });
+  }
+});
 
 // Lightweight periodic recovery snapshot, independent of the main persisted
 // key, so the project can be restored even if the primary write is interrupted.
@@ -1097,7 +1381,11 @@ setInterval(() => {
       tags: s.tags,
       activeRoomId: s.activeRoomId,
       settings: s.settings,
-    },
+      currentUser: s.currentUser,
+      knownUsers: s.knownUsers,
+      projectMeta: s.projectMeta,
+      activityLog: s.activityLog,
+    } satisfies PersistedState,
     savedAt: Date.now(),
   };
   localforage.setItem(RECOVERY_KEY, JSON.stringify(payload)).catch(() => {});

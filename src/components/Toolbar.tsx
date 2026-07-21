@@ -9,17 +9,20 @@ import {
   Ruler,
   Undo2,
   Redo2,
-  Trash2,
   Tags,
   Maximize,
   MousePointer2,
   PencilLine,
   DoorOpen,
   RectangleHorizontal,
+  Hammer,
+  Package,
+  History,
 } from 'lucide-react';
 import { useStore, useActiveRoom } from '../store/store';
 import { ALL_UNITS, UNIT_LABEL } from '../lib/units';
-import type { ObjectKind } from '../types';
+import type { ObjectKind, AppMode } from '../types';
+import SaveIndicator from './SaveIndicator';
 
 const TOOLS: { kind: ObjectKind; icon: React.ReactNode; label: string }[] = [
   { kind: 'container', icon: <Boxes size={17} />, label: 'Shelf / Cabinet' },
@@ -36,6 +39,11 @@ const WALL_TOOLS: { tool: 'select' | 'draw' | 'door' | 'window'; icon: React.Rea
   { tool: 'window', icon: <RectangleHorizontal size={17} />, label: 'Add window' },
 ];
 
+const MODES: { mode: AppMode; icon: React.ReactNode; label: string }[] = [
+  { mode: 'design', icon: <Hammer size={14} />, label: 'Design' },
+  { mode: 'inventory', icon: <Package size={14} />, label: 'Inventory' },
+];
+
 export default function Toolbar() {
   const settings = useStore((s) => s.settings);
   const room = useActiveRoom();
@@ -49,13 +57,15 @@ export default function Toolbar() {
   const redo = useStore((s) => s.redo);
   const canUndo = useStore((s) => s.past.length > 0);
   const canRedo = useStore((s) => s.future.length > 0);
-  const resetAll = useStore((s) => s.resetAll);
   const requestFitToView = useStore((s) => s.requestFitToView);
   const wallTool = useStore((s) => s.wallTool);
   const setWallTool = useStore((s) => s.setWallTool);
+  const setMode = useStore((s) => s.setMode);
+  const openLogViewer = useStore((s) => s.openLogViewer);
 
+  const mode = settings.mode;
   const activeLayer = room.layers.find((l) => l.id === room.activeLayerId);
-  const isWallMode = activeLayer?.kind === 'wall';
+  const isWallMode = mode === 'design' && activeLayer?.kind === 'wall';
 
   return (
     <div className="toolbar glass">
@@ -63,21 +73,34 @@ export default function Toolbar() {
         <span className="brand-mark">◆</span>
         <span className="brand-name">SRS Lab Designer</span>
       </div>
+      <SaveIndicator />
       <div className="divider-v" />
 
-      {isWallMode ? (
-        <>
-          {WALL_TOOLS.map((t) => (
-            <button
-              key={t.tool}
-              className={`btn icon ${wallTool === t.tool ? 'active' : ''}`}
-              title={t.label}
-              onClick={() => setWallTool(t.tool)}
-            >
-              {t.icon}
-            </button>
-          ))}
-        </>
+      <div className="mode-switch">
+        {MODES.map((m) => (
+          <button key={m.mode} className={mode === m.mode ? 'active' : ''} onClick={() => setMode(m.mode)}>
+            {m.icon}
+            {m.label}
+          </button>
+        ))}
+      </div>
+      <div className="divider-v" />
+
+      {mode === 'inventory' ? (
+        <button className="btn icon" title="Select & navigate" disabled>
+          <MousePointer2 size={17} />
+        </button>
+      ) : isWallMode ? (
+        WALL_TOOLS.map((t) => (
+          <button
+            key={t.tool}
+            className={`btn icon ${wallTool === t.tool ? 'active' : ''}`}
+            title={t.label}
+            onClick={() => setWallTool(t.tool)}
+          >
+            {t.icon}
+          </button>
+        ))
       ) : (
         TOOLS.map((t) => (
           <button key={t.kind} className="btn icon" title={t.label} onClick={() => addObject(t.kind)}>
@@ -97,19 +120,23 @@ export default function Toolbar() {
 
       <div className="divider-v" />
 
-      <button className={`btn icon ${settings.gridVisible ? 'active' : ''}`} title="Toggle grid" onClick={toggleGrid}>
-        <Grid3x3 size={17} />
-      </button>
-      <button className={`btn icon ${settings.snapToGrid ? 'active' : ''}`} title="Snap to grid" onClick={toggleSnap}>
-        <Magnet size={17} />
-      </button>
-      <button
-        className={`btn icon ${settings.spaceAwareness ? 'active' : ''}`}
-        title="Space awareness — track fill % and warn on overflow"
-        onClick={toggleSpace}
-      >
-        <Ruler size={17} />
-      </button>
+      {mode === 'design' && (
+        <>
+          <button className={`btn icon ${settings.gridVisible ? 'active' : ''}`} title="Toggle grid" onClick={toggleGrid}>
+            <Grid3x3 size={17} />
+          </button>
+          <button className={`btn icon ${settings.snapToGrid ? 'active' : ''}`} title="Snap to grid" onClick={toggleSnap}>
+            <Magnet size={17} />
+          </button>
+          <button
+            className={`btn icon ${settings.spaceAwareness ? 'active' : ''}`}
+            title="Space awareness — track fill % and warn on overflow"
+            onClick={toggleSpace}
+          >
+            <Ruler size={17} />
+          </button>
+        </>
+      )}
       <button
         className={`btn icon ${settings.showAllLabels ? 'active' : ''}`}
         title="Show All Labels"
@@ -120,6 +147,11 @@ export default function Toolbar() {
       <button className="btn icon" title="Fit to view (F)" onClick={requestFitToView}>
         <Maximize size={17} />
       </button>
+      {mode === 'inventory' && (
+        <button className="btn icon" title="Inventory log" onClick={openLogViewer}>
+          <History size={17} />
+        </button>
+      )}
 
       <div className="divider-v" />
 
@@ -130,10 +162,6 @@ export default function Toolbar() {
           </option>
         ))}
       </select>
-
-      <button className="btn icon danger" title="Reset to demo project" onClick={() => confirm('Reset the entire project to the demo?') && resetAll()}>
-        <Trash2 size={16} />
-      </button>
     </div>
   );
 }
