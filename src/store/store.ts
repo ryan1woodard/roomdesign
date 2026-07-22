@@ -98,9 +98,10 @@ export type WallTool = 'select' | 'draw' | 'door' | 'window';
 export type WallEntitySelection = { type: 'wall' | 'vertex' | 'opening'; id: string } | null;
 
 /** Design-mode object interaction tool. 'select' shows resize handles only;
- * 'move'/'rotate' swap in the dedicated move/rotate gizmo — the only ways
- * to reposition or rotate an object (there is no more free drag). */
-export type ObjectTool = 'select' | 'move' | 'rotate';
+ * 'move'/'rotate' swap in the dedicated precision gizmo (drag for a live
+ * readout, or type an exact amount); 'freeMove' restores plain drag-to-move
+ * on the object body (plus resize handles), for quick freehand placement. */
+export type ObjectTool = 'select' | 'move' | 'rotate' | 'freeMove';
 
 interface Clipboard {
   objects: RoomObject[];

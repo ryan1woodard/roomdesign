@@ -115,13 +115,13 @@ export default function RoomCanvas() {
     else nodeMap.current.delete(id);
   }, []);
 
-  // Attach transformer (resize handles) to a single selected object — only
-  // in the default 'select' tool, since 'move'/'rotate' show their own
-  // dedicated gizmo instead.
+  // Attach transformer (resize handles) to a single selected object — in the
+  // default 'select' tool and in 'freeMove' (which also allows dragging),
+  // since 'move'/'rotate' show their own dedicated gizmo instead.
   useEffect(() => {
     const tr = trRef.current;
     if (!tr) return;
-    if (selection.length === 1 && !isWallMode && objectTool === 'select') {
+    if (selection.length === 1 && !isWallMode && (objectTool === 'select' || objectTool === 'freeMove')) {
       const node = nodeMap.current.get(selection[0]);
       tr.nodes(node ? [node] : []);
     } else {
@@ -389,17 +389,21 @@ export default function RoomCanvas() {
               dimmed={search.trim().length > 0 && !searchHits.has(obj.id)}
               counts={counts[obj.id] ?? {}}
               showDetail={showDetail}
+              snapIn={snapIn}
               zoomScale={cam.scale}
               showAllLabels={settings.showAllLabels}
               mode={mode}
+              objectTool={objectTool}
               registerNode={registerNode}
               onSelect={handleObjSelect}
               onOpenCell={(id, key) => mode === 'inventory' && open({ objectId: id, cellKey: key })}
               onOpenPicker={(id) => mode === 'inventory' && openPicker(id)}
+              onDragMove={(id, x, y) => updateObject(id, { x, y })}
+              onDragEnd={(id, x, y) => updateObject(id, { x, y })}
               onContextMenu={(id, x, y) => openContextMenu(id, x, y)}
             />
           ))}
-          {mode === 'design' && !isWallMode && objectTool === 'select' && (
+          {mode === 'design' && !isWallMode && (objectTool === 'select' || objectTool === 'freeMove') && (
             <Transformer
               ref={trRef}
               rotateEnabled={false}
@@ -412,18 +416,22 @@ export default function RoomCanvas() {
               boundBoxFunc={(oldBox, newBox) => (newBox.width < 8 || newBox.height < 8 ? oldBox : newBox)}
             />
           )}
-          {mode === 'design' && !isWallMode && objectTool !== 'select' && selection.length === 1 && objects[selection[0]] && (
-            <TransformTools
-              key={selection[0]}
-              obj={objects[selection[0]]}
-              px={PX_PER_IN}
-              zoomScale={cam.scale}
-              tool={objectTool}
-              snapIn={snapIn}
-              units={settings.units}
-              onUpdate={(patch) => updateObject(selection[0], patch)}
-            />
-          )}
+          {mode === 'design' &&
+            !isWallMode &&
+            (objectTool === 'move' || objectTool === 'rotate') &&
+            selection.length === 1 &&
+            objects[selection[0]] && (
+              <TransformTools
+                key={selection[0]}
+                obj={objects[selection[0]]}
+                px={PX_PER_IN}
+                zoomScale={cam.scale}
+                tool={objectTool}
+                snapIn={snapIn}
+                units={settings.units}
+                onUpdate={(patch) => updateObject(selection[0], patch)}
+              />
+            )}
         </Layer>
       </Stage>
 

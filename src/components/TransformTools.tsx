@@ -6,8 +6,13 @@ import type { ObjectTool } from '../store/store';
 import { formatLength } from '../lib/units';
 
 const ACCENT = '#4f8cff';
+const ACCENT_HOVER = '#7db0ff';
 const HANDLE_SCREEN_DIST = 60; // constant screen-px distance from the object's center
 const ROTATE_SCREEN_RADIUS = 56;
+const HOVER_SCALE = 1.25;
+const HOVER_TWEEN_SEC = 0.12;
+
+type HandleId = 'center' | 'x' | 'y' | 'rotate';
 
 interface Props {
   obj: RoomObject;
@@ -49,13 +54,29 @@ export default function TransformTools({ obj, px, zoomScale, tool, snapIn, units
 
   const [moveReadout, setMoveReadout] = useState<{ dx: number; dy: number } | null>(null);
   const [rotateReadout, setRotateReadout] = useState<number | null>(null);
-  const cursorSet = useRef(false);
+  const [hovered, setHovered] = useState<HandleId | null>(null);
+  const draggingRef = useRef(false);
+
+  const handleRefs = {
+    center: useRef<Konva.Group>(null),
+    x: useRef<Konva.Group>(null),
+    y: useRef<Konva.Group>(null),
+    rotate: useRef<Konva.Group>(null),
+  };
 
   const snap = (v: number) => (snapIn ? Math.round(v / snapIn) * snapIn : v);
 
-  const setGrabCursor = (stage: Konva.Stage, grabbing: boolean) => {
-    stage.container().style.cursor = grabbing ? 'grabbing' : '';
-    cursorSet.current = grabbing;
+  const popIn = (id: HandleId) => {
+    setHovered(id);
+    handleRefs[id].current?.to({ scaleX: HOVER_SCALE, scaleY: HOVER_SCALE, duration: HOVER_TWEEN_SEC, easing: Konva.Easings.EaseOut });
+  };
+  const popOut = (id: HandleId) => {
+    setHovered((cur) => (cur === id ? null : cur));
+    handleRefs[id].current?.to({ scaleX: 1, scaleY: 1, duration: HOVER_TWEEN_SEC, easing: Konva.Easings.EaseOut });
+  };
+
+  const setGrabCursor = (stage: Konva.Stage, cursor: string) => {
+    stage.container().style.cursor = cursor;
   };
 
   const startMoveDrag = (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>, axis: 'both' | 'x' | 'y') => {
@@ -65,7 +86,8 @@ export default function TransformTools({ obj, px, zoomScale, tool, snapIn, units
     const startPointer = stage.getRelativePointerPosition();
     if (!startPointer) return;
     const startObj = { x: obj.x, y: obj.y };
-    setGrabCursor(stage, true);
+    draggingRef.current = true;
+    setGrabCursor(stage, 'grabbing');
     setMoveReadout({ dx: 0, dy: 0 });
 
     const move = () => {
@@ -76,12 +98,16 @@ export default function TransformTools({ obj, px, zoomScale, tool, snapIn, units
       const newX = snap(startObj.x + dxIn);
       const newY = snap(startObj.y + dyIn);
       onUpdate(axis === 'y' ? { y: newY } : axis === 'x' ? { x: newX } : { x: newX, y: newY });
-      setMoveReadout({ dx: newX - startObj.x, dy: newY - startObj.y });
+      setMoveReadout({
+        dx: axis === 'y' ? 0 : newX - startObj.x,
+        dy: axis === 'x' ? 0 : newY - startObj.y,
+      });
     };
     const up = () => {
       stage.off('mousemove.transform touchmove.transform', move);
       stage.off('mouseup.transform touchend.transform', up);
-      setGrabCursor(stage, false);
+      draggingRef.current = false;
+      setGrabCursor(stage, hovered ? 'grab' : '');
       setMoveReadout(null);
     };
     stage.on('mousemove.transform touchmove.transform', move);
@@ -92,7 +118,8 @@ export default function TransformTools({ obj, px, zoomScale, tool, snapIn, units
     e.cancelBubble = true;
     const stage = e.target.getStage();
     if (!stage) return;
-    setGrabCursor(stage, true);
+    draggingRef.current = true;
+    setGrabCursor(stage, 'grabbing');
     setRotateReadout(obj.rotation);
 
     const move = () => {
@@ -106,15 +133,32 @@ export default function TransformTools({ obj, px, zoomScale, tool, snapIn, units
     const up = () => {
       stage.off('mousemove.transform touchmove.transform', move);
       stage.off('mouseup.transform touchend.transform', up);
-      setGrabCursor(stage, false);
+      draggingRef.current = false;
+      setGrabCursor(stage, hovered ? 'grab' : '');
       setRotateReadout(null);
     };
     stage.on('mousemove.transform touchmove.transform', move);
     stage.on('mouseup.transform touchend.transform', up);
   };
 
+  const hoverHandlers = (id: HandleId) => ({
+    onMouseEnter: (e: Konva.KonvaEventObject<MouseEvent>) => {
+      popIn(id);
+      const stage = e.target.getStage();
+      if (stage && !draggingRef.current) setGrabCursor(stage, 'grab');
+    },
+    onMouseLeave: (e: Konva.KonvaEventObject<MouseEvent>) => {
+      popOut(id);
+      const stage = e.target.getStage();
+      if (stage && !draggingRef.current) setGrabCursor(stage, '');
+    },
+  });
+
   if (tool === 'move') {
     const handleFill = 'rgba(18,21,29,0.92)';
+    const centerColor = hovered === 'center' ? ACCENT_HOVER : ACCENT;
+    const xColor = hovered === 'x' ? ACCENT_HOVER : ACCENT;
+    const yColor = hovered === 'y' ? ACCENT_HOVER : ACCENT;
 
     return (
       <Group listening>
@@ -123,23 +167,44 @@ export default function TransformTools({ obj, px, zoomScale, tool, snapIn, units
         <Line points={[centerX, centerY, centerX, centerY + dist]} stroke={ACCENT} strokeWidth={1.5} opacity={0.55} listening={false} />
 
         {/* Free-move center handle */}
-        <Group x={centerX} y={centerY} onMouseDown={(e) => startMoveDrag(e, 'both')} onTouchStart={(e) => startMoveDrag(e, 'both')}>
-          <Circle radius={9 * counterScale} fill={handleFill} stroke={ACCENT} strokeWidth={2 * counterScale} />
-          <Line points={[-4 * counterScale, 0, 4 * counterScale, 0]} stroke={ACCENT} strokeWidth={1.5 * counterScale} listening={false} />
-          <Line points={[0, -4 * counterScale, 0, 4 * counterScale]} stroke={ACCENT} strokeWidth={1.5 * counterScale} listening={false} />
+        <Group
+          ref={handleRefs.center}
+          x={centerX}
+          y={centerY}
+          onMouseDown={(e) => startMoveDrag(e, 'both')}
+          onTouchStart={(e) => startMoveDrag(e, 'both')}
+          {...hoverHandlers('center')}
+        >
+          <Circle radius={9 * counterScale} fill={handleFill} stroke={centerColor} strokeWidth={2 * counterScale} />
+          <Line points={[-4 * counterScale, 0, 4 * counterScale, 0]} stroke={centerColor} strokeWidth={1.5 * counterScale} listening={false} />
+          <Line points={[0, -4 * counterScale, 0, 4 * counterScale]} stroke={centerColor} strokeWidth={1.5 * counterScale} listening={false} />
         </Group>
 
         {/* X-axis handle (horizontal-only) */}
-        <Group x={centerX + dist} y={centerY} onMouseDown={(e) => startMoveDrag(e, 'x')} onTouchStart={(e) => startMoveDrag(e, 'x')}>
+        <Group
+          ref={handleRefs.x}
+          x={centerX + dist}
+          y={centerY}
+          onMouseDown={(e) => startMoveDrag(e, 'x')}
+          onTouchStart={(e) => startMoveDrag(e, 'x')}
+          {...hoverHandlers('x')}
+        >
           <Group scaleX={counterScale} scaleY={counterScale}>
-            <Line points={[-8, -6, 8, 0, -8, 6]} closed fill={ACCENT} stroke={ACCENT} />
+            <Line points={[-8, -6, 8, 0, -8, 6]} closed fill={xColor} stroke={xColor} />
           </Group>
         </Group>
 
         {/* Y-axis handle (vertical-only) */}
-        <Group x={centerX} y={centerY + dist} onMouseDown={(e) => startMoveDrag(e, 'y')} onTouchStart={(e) => startMoveDrag(e, 'y')}>
+        <Group
+          ref={handleRefs.y}
+          x={centerX}
+          y={centerY + dist}
+          onMouseDown={(e) => startMoveDrag(e, 'y')}
+          onTouchStart={(e) => startMoveDrag(e, 'y')}
+          {...hoverHandlers('y')}
+        >
           <Group scaleX={counterScale} scaleY={counterScale} rotation={90}>
-            <Line points={[-8, -6, 8, 0, -8, 6]} closed fill={ACCENT} stroke={ACCENT} />
+            <Line points={[-8, -6, 8, 0, -8, 6]} closed fill={yColor} stroke={yColor} />
           </Group>
         </Group>
 
@@ -159,13 +224,14 @@ export default function TransformTools({ obj, px, zoomScale, tool, snapIn, units
   const handleAngleRad = ((obj.rotation - 90) * Math.PI) / 180;
   const hx = centerX + rotateRadius * Math.cos(handleAngleRad);
   const hy = centerY + rotateRadius * Math.sin(handleAngleRad);
+  const rotateColor = hovered === 'rotate' ? ACCENT_HOVER : ACCENT;
 
   return (
     <Group listening>
       <Circle x={centerX} y={centerY} radius={rotateRadius} stroke={ACCENT} strokeWidth={1.5} opacity={0.45} dash={[5, 5]} listening={false} />
       <Line points={[centerX, centerY, hx, hy]} stroke={ACCENT} strokeWidth={1.5} opacity={0.55} listening={false} />
-      <Group x={hx} y={hy} onMouseDown={startRotateDrag} onTouchStart={startRotateDrag}>
-        <Circle radius={9 * counterScale} fill="rgba(18,21,29,0.92)" stroke={ACCENT} strokeWidth={2 * counterScale} />
+      <Group ref={handleRefs.rotate} x={hx} y={hy} onMouseDown={startRotateDrag} onTouchStart={startRotateDrag} {...hoverHandlers('rotate')}>
+        <Circle radius={9 * counterScale} fill="rgba(18,21,29,0.92)" stroke={rotateColor} strokeWidth={2 * counterScale} />
       </Group>
 
       {rotateReadout !== null && (

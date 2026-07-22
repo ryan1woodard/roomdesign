@@ -2,6 +2,7 @@ import { Trash2, Scissors, Merge, X, RectangleHorizontal, Spline } from 'lucide-
 import { useStore, useActiveRoom } from '../store/store';
 import { fromInches, toInches, UNIT_LABEL } from '../lib/units';
 import { canMergeAt, wallVector } from '../lib/walls';
+import NumberField from './NumberField';
 
 export default function WallInspector() {
   const room = useActiveRoom();
@@ -36,15 +37,11 @@ export default function WallInspector() {
           </p>
           <div className="section">
             <span className="label">Default wall thickness</span>
-            <div className="num-input-wrap">
-              <input
-                className="field"
-                type="number"
-                value={Math.round(fromInches(defaultThickness, units) * 100) / 100}
-                onChange={(e) => setWallThicknessDefault(toInches(parseFloat(e.target.value) || 1, units))}
-              />
-              <span className="num-unit">{u}</span>
-            </div>
+            <NumberField
+              value={fromInches(defaultThickness, units)}
+              unitLabel={u}
+              onCommit={(v) => setWallThicknessDefault(toInches(v ?? fromInches(defaultThickness, units), units))}
+            />
           </div>
           <label className="check-row">
             <input type="checkbox" checked={wallAngleSnap} onChange={toggleWallAngleSnap} />
@@ -97,15 +94,11 @@ export default function WallInspector() {
           </div>
           <div className="section">
             <span className="label">Thickness</span>
-            <div className="num-input-wrap">
-              <input
-                className="field"
-                type="number"
-                value={Math.round(fromInches(wall.thickness, units) * 100) / 100}
-                onChange={(e) => updateWallThickness(wall.id, toInches(parseFloat(e.target.value) || 1, units))}
-              />
-              <span className="num-unit">{u}</span>
-            </div>
+            <NumberField
+              value={fromInches(wall.thickness, units)}
+              unitLabel={u}
+              onCommit={(v) => updateWallThickness(wall.id, toInches(v ?? fromInches(wall.thickness, units), units))}
+            />
           </div>
           <label className="check-row">
             <input type="checkbox" checked={wall.curved} onChange={() => toggleWallCurved(wall.id)} />
@@ -178,15 +171,11 @@ export default function WallInspector() {
       <div className="inspector-body">
         <div className="section">
           <span className="label">Width</span>
-          <div className="num-input-wrap">
-            <input
-              className="field"
-              type="number"
-              value={Math.round(fromInches(opening.width, units) * 100) / 100}
-              onChange={(e) => updateOpening(opening.id, { width: toInches(parseFloat(e.target.value) || 1, units) })}
-            />
-            <span className="num-unit">{u}</span>
-          </div>
+          <NumberField
+            value={fromInches(opening.width, units)}
+            unitLabel={u}
+            onCommit={(v) => updateOpening(opening.id, { width: toInches(v ?? fromInches(opening.width, units), units) })}
+          />
         </div>
         {opening.kind === 'window' && (
           <p className="hint">

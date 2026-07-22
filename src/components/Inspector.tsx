@@ -4,38 +4,9 @@ import { useStore, useActiveRoom } from '../store/store';
 import { fromInches, toInches, UNIT_LABEL } from '../lib/units';
 import type { RoomObject } from '../types';
 import ShelfEditor from './ShelfEditor';
+import NumberField from './NumberField';
 
 const SWATCHES = ['#3b4a63', '#4a3b5f', '#3b5f4a', '#5f4a3b', '#5f3b4a', '#334', '#2a2f3a', '#4f8cff'];
-
-function NumberField({
-  label,
-  value,
-  onCommit,
-  unitLabel,
-  step = 1,
-}: {
-  label: string;
-  value: number;
-  onCommit: (v: number) => void;
-  unitLabel?: string;
-  step?: number;
-}) {
-  return (
-    <label className="num-field">
-      <span className="label">{label}</span>
-      <div className="num-input-wrap">
-        <input
-          className="field"
-          type="number"
-          step={step}
-          value={Number.isFinite(value) ? Math.round(value * 100) / 100 : 0}
-          onChange={(e) => onCommit(parseFloat(e.target.value) || 0)}
-        />
-        {unitLabel && <span className="num-unit">{unitLabel}</span>}
-      </div>
-    </label>
-  );
-}
 
 export default function Inspector() {
   const selection = useStore((s) => s.selection);
@@ -148,8 +119,8 @@ export default function Inspector() {
                   <Move size={12} style={{ verticalAlign: '-2px' }} /> Move by
                 </span>
                 <div className="grid-2">
-                  <NumberField label="X" value={moveX} unitLabel={u} onCommit={setMoveX} />
-                  <NumberField label="Y" value={moveY} unitLabel={u} onCommit={setMoveY} />
+                  <NumberField label="X" value={moveX} unitLabel={u} onCommit={(v) => setMoveX(v ?? 0)} />
+                  <NumberField label="Y" value={moveY} unitLabel={u} onCommit={(v) => setMoveY(v ?? 0)} />
                 </div>
                 <button
                   className="btn primary"
@@ -175,7 +146,7 @@ export default function Inspector() {
                   label="Angle"
                   value={obj.rotation}
                   unitLabel="°"
-                  onCommit={(v) => update(obj.id, { rotation: ((v % 360) + 360) % 360 })}
+                  onCommit={(v) => update(obj.id, { rotation: (((v ?? obj.rotation) % 360) + 360) % 360 })}
                 />
                 <p className="hint">Drag the rotate handle on the canvas, or type an exact angle here.</p>
               </div>
@@ -184,9 +155,9 @@ export default function Inspector() {
             <div className="section">
               <span className="label">Dimensions</span>
               <div className="grid-2">
-                <NumberField label="Width" value={dispLen(obj.width)} unitLabel={u} onCommit={setLen('width')} />
-                <NumberField label="Depth" value={dispLen(obj.height)} unitLabel={u} onCommit={setLen('height')} />
-                <NumberField label="Height" value={dispLen(obj.depthIn)} unitLabel={u} onCommit={setLen('depthIn')} />
+                <NumberField label="Width" value={dispLen(obj.width)} unitLabel={u} onCommit={(v) => setLen('width')(v ?? dispLen(obj.width))} />
+                <NumberField label="Depth" value={dispLen(obj.height)} unitLabel={u} onCommit={(v) => setLen('height')(v ?? dispLen(obj.height))} />
+                <NumberField label="Height" value={dispLen(obj.depthIn)} unitLabel={u} onCommit={(v) => setLen('depthIn')(v ?? dispLen(obj.depthIn))} />
               </div>
             </div>
 
@@ -213,7 +184,7 @@ export default function Inspector() {
                   <NumberField
                     label="Corner radius"
                     value={obj.cornerRadius}
-                    onCommit={(v) => update(obj.id, { cornerRadius: v })}
+                    onCommit={(v) => update(obj.id, { cornerRadius: v ?? obj.cornerRadius })}
                   />
                 )}
               </div>

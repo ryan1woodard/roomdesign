@@ -3,6 +3,7 @@ import { X, ImagePlus, Trash2, Plus, Minus, ChevronDown } from 'lucide-react';
 import { useStore, useActiveRoom } from '../store/store';
 import { fromInches, toInches, UNIT_LABEL } from '../lib/units';
 import { locationKeys, cellName } from '../lib/shelf';
+import NumberField from './NumberField';
 
 const TAG_COLORS = ['#4f8cff', '#39c07a', '#ff9f45', '#a678f0', '#8b95a7', '#ff5d6c', '#2dd4bf', '#f0c674'];
 
@@ -56,7 +57,7 @@ export default function ItemInspector() {
     setNewTag('');
   };
 
-  const dispLen = (v?: number) => (v != null ? Math.round(fromInches(v, units) * 100) / 100 : '');
+  const dispLen = (v?: number): number | undefined => (v != null ? Math.round(fromInches(v, units) * 100) / 100 : undefined);
 
   return (
     <div className="item-inspector glass" onClick={(e) => e.stopPropagation()}>
@@ -100,11 +101,10 @@ export default function ItemInspector() {
           <button className="btn icon" onClick={() => update(item.id, { quantity: Math.max(0, item.quantity - 1) })}>
             <Minus size={15} />
           </button>
-          <input
-            className="field"
-            type="number"
+          <NumberField
             value={item.quantity}
-            onChange={(e) => update(item.id, { quantity: Math.max(0, parseInt(e.target.value) || 0) })}
+            step={1}
+            onCommit={(v) => update(item.id, { quantity: Math.max(0, Math.round(v ?? item.quantity)) })}
           />
           <button className="btn icon" onClick={() => update(item.id, { quantity: item.quantity + 1 })}>
             <Plus size={15} />
@@ -180,14 +180,14 @@ export default function ItemInspector() {
           </select>
 
           {item.quantity > 1 && (
-            <input
-              className="field move-qty-input"
-              type="number"
+            <NumberField
+              className="move-qty-input"
               min={1}
               max={item.quantity}
               value={moveQty}
+              step={1}
               title={`How many of ${item.quantity} to move`}
-              onChange={(e) => setMoveQty(Math.max(1, Math.min(item.quantity, parseInt(e.target.value) || 1)))}
+              onCommit={(v) => setMoveQty(Math.max(1, Math.min(item.quantity, Math.round(v ?? moveQty))))}
             />
           )}
 
@@ -220,33 +220,24 @@ export default function ItemInspector() {
               onChange={(e) => update(item.id, { notes: e.target.value })}
             />
             <div className="grid-3">
-              <label className="num-field">
-                <span className="label">W ({u})</span>
-                <input
-                  className="field"
-                  type="number"
-                  value={dispLen(item.widthIn)}
-                  onChange={(e) => update(item.id, { widthIn: e.target.value ? toInches(parseFloat(e.target.value), units) : undefined })}
-                />
-              </label>
-              <label className="num-field">
-                <span className="label">H ({u})</span>
-                <input
-                  className="field"
-                  type="number"
-                  value={dispLen(item.heightIn)}
-                  onChange={(e) => update(item.id, { heightIn: e.target.value ? toInches(parseFloat(e.target.value), units) : undefined })}
-                />
-              </label>
-              <label className="num-field">
-                <span className="label">D ({u})</span>
-                <input
-                  className="field"
-                  type="number"
-                  value={dispLen(item.depthIn)}
-                  onChange={(e) => update(item.id, { depthIn: e.target.value ? toInches(parseFloat(e.target.value), units) : undefined })}
-                />
-              </label>
+              <NumberField
+                label={`W (${u})`}
+                value={dispLen(item.widthIn)}
+                optional
+                onCommit={(v) => update(item.id, { widthIn: v !== undefined ? toInches(v, units) : undefined })}
+              />
+              <NumberField
+                label={`H (${u})`}
+                value={dispLen(item.heightIn)}
+                optional
+                onCommit={(v) => update(item.id, { heightIn: v !== undefined ? toInches(v, units) : undefined })}
+              />
+              <NumberField
+                label={`D (${u})`}
+                value={dispLen(item.depthIn)}
+                optional
+                onCommit={(v) => update(item.id, { depthIn: v !== undefined ? toInches(v, units) : undefined })}
+              />
             </div>
             <label className="label">Purchase date</label>
             <input
@@ -256,15 +247,12 @@ export default function ItemInspector() {
               onChange={(e) => update(item.id, { purchaseDate: e.target.value || undefined })}
             />
             <div className="grid-2">
-              <label className="num-field">
-                <span className="label">Value ($)</span>
-                <input
-                  className="field"
-                  type="number"
-                  value={item.value ?? ''}
-                  onChange={(e) => update(item.id, { value: e.target.value ? parseFloat(e.target.value) : undefined })}
-                />
-              </label>
+              <NumberField
+                label="Value ($)"
+                value={item.value}
+                optional
+                onCommit={(v) => update(item.id, { value: v })}
+              />
               <label className="num-field">
                 <span className="label">Serial</span>
                 <input

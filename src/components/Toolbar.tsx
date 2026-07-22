@@ -17,6 +17,7 @@ import {
   History,
   Move,
   RotateCw,
+  Hand,
 } from 'lucide-react';
 import { useStore, useActiveRoom } from '../store/store';
 import { ALL_UNITS, UNIT_LABEL } from '../lib/units';
@@ -93,6 +94,13 @@ export default function Toolbar() {
             </button>
           ))}
           <div className="divider-v" />
+          <button
+            className={`btn icon ${objectTool === 'freeMove' ? 'active' : ''}`}
+            title="Free Move — drag the object anywhere, like before"
+            onClick={() => setObjectTool(objectTool === 'freeMove' ? 'select' : 'freeMove')}
+          >
+            <Hand size={17} />
+          </button>
           <button
             className={`btn icon ${objectTool === 'move' ? 'active' : ''}`}
             title="Move tool — drag the arrows to move the selected object by a precise amount"
