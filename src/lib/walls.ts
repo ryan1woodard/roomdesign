@@ -194,6 +194,7 @@ export function makeVertex(x: number, y: number): WallVertex {
 export function computeFloors(vertices: Record<string, WallVertex>, walls: Record<string, WallSegment>): FloorPolygon[] {
   const adjacency = new Map<string, { neighbor: string; wallId: string }[]>();
   for (const w of Object.values(walls)) {
+    if (w.a === w.b) continue; // a self-referencing wall carries no real graph structure
     if (!adjacency.has(w.a)) adjacency.set(w.a, []);
     if (!adjacency.has(w.b)) adjacency.set(w.b, []);
     adjacency.get(w.a)!.push({ neighbor: w.b, wallId: w.id });

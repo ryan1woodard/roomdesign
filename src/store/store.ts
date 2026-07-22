@@ -1348,6 +1348,12 @@ export const useStore = create<AppState>()(
           }
 
           const targetVertex = candidate.snappedVertexId ? room.vertices[candidate.snappedVertexId] : makeVertex(candidate.point.x, candidate.point.y);
+          // Clicking back onto the point the last wall ended at (with no
+          // movement in between) would otherwise create a wall connecting a
+          // vertex to itself — a zero-length, self-referencing segment that
+          // corrupts the wall graph's floor/adjacency computation. Treat it
+          // as a no-op instead: the draft just stays where it is.
+          if (targetVertex.id === draft.lastVertexId) return {};
           const vertices = candidate.snappedVertexId ? room.vertices : { ...room.vertices, [targetVertex.id]: targetVertex };
           const wall = makeWall(draft.lastVertexId, targetVertex.id, thickness);
           const nextRoom = recomputeFloors({ ...room, vertices, walls: { ...room.walls, [wall.id]: wall } });

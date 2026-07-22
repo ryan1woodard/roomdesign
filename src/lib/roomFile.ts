@@ -156,6 +156,7 @@ function validateWalls(v: unknown): asserts v is Record<string, WallSegment> {
       typeof raw.id !== 'string' ||
       typeof raw.a !== 'string' ||
       typeof raw.b !== 'string' ||
+      raw.a === raw.b ||
       !isFiniteNumber(raw.thickness) ||
       typeof raw.curved !== 'boolean' ||
       !isFiniteNumber(raw.curveOffset)

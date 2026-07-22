@@ -172,65 +172,55 @@ export default function RoomNavigator() {
                         </div>
                         {isDesign && (
                           <div className="room-row-actions-slot">
-                            <Tooltip label="Move Up">
-                              <button
-                                className="btn icon"
-                                disabled={idx === 0}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  reorderRoom(id, -1);
-                                }}
-                              >
-                                <ChevronUp size={12} />
-                              </button>
-                            </Tooltip>
-                            <Tooltip label="Move Down">
-                              <button
-                                className="btn icon"
-                                disabled={idx === roomOrder.length - 1}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  reorderRoom(id, 1);
-                                }}
-                              >
-                                <ChevronDown size={12} />
-                              </button>
-                            </Tooltip>
-                            <Tooltip label="Duplicate">
-                              <button
-                                className="btn icon"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  duplicateRoom(id);
-                                }}
-                              >
-                                <Copy size={12} />
-                              </button>
-                            </Tooltip>
-                            <Tooltip label="Export">
-                              <button
-                                className="btn icon"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleExport(r);
-                                }}
-                              >
-                                <Download size={12} />
-                              </button>
-                            </Tooltip>
+                            <button
+                              className="btn icon"
+                              disabled={idx === 0}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                reorderRoom(id, -1);
+                              }}
+                            >
+                              <ChevronUp size={12} />
+                            </button>
+                            <button
+                              className="btn icon"
+                              disabled={idx === roomOrder.length - 1}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                reorderRoom(id, 1);
+                              }}
+                            >
+                              <ChevronDown size={12} />
+                            </button>
+                            <button
+                              className="btn icon"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                duplicateRoom(id);
+                              }}
+                            >
+                              <Copy size={12} />
+                            </button>
+                            <button
+                              className="btn icon"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleExport(r);
+                              }}
+                            >
+                              <Download size={12} />
+                            </button>
                             {roomOrder.length > 1 && (
-                              <Tooltip label="Delete">
-                                <button
-                                  className="btn icon danger"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (confirm(`Delete "${r.name}"? This removes all its furniture and inventory.`))
-                                      deleteRoom(id);
-                                  }}
-                                >
-                                  <Trash2 size={12} />
-                                </button>
-                              </Tooltip>
+                              <button
+                                className="btn icon danger"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (confirm(`Delete "${r.name}"? This removes all its furniture and inventory.`))
+                                    deleteRoom(id);
+                                }}
+                              >
+                                <Trash2 size={12} />
+                              </button>
                             )}
                           </div>
                         )}
