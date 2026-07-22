@@ -13,6 +13,7 @@ import DrawerView from './components/DrawerView';
 import ObjectContextMenu from './components/ObjectContextMenu';
 import LoadingScreen from './components/LoadingScreen';
 import LogViewer from './components/LogViewer';
+import InventoryDatabase from './components/InventoryDatabase';
 import LoginScreen from './components/LoginScreen';
 import UserMenu from './components/UserMenu';
 import ToastStack from './components/Toast';
@@ -190,6 +191,7 @@ export default function App() {
       <DrawerView />
       <ObjectContextMenu />
       <LogViewer />
+      <InventoryDatabase />
       <ToastStack />
     </div>
   );

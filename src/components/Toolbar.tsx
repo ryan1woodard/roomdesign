@@ -15,6 +15,7 @@ import {
   DoorOpen,
   RectangleHorizontal,
   History,
+  Database,
   Move,
   RotateCw,
   Hand,
@@ -60,6 +61,7 @@ export default function Toolbar() {
   const objectTool = useStore((s) => s.objectTool);
   const setObjectTool = useStore((s) => s.setObjectTool);
   const openLogViewer = useStore((s) => s.openLogViewer);
+  const openInventoryDb = useStore((s) => s.openInventoryDb);
 
   const mode = settings.mode;
   const activeLayer = room.layers.find((l) => l.id === room.activeLayerId);
@@ -74,13 +76,7 @@ export default function Toolbar() {
       <SaveIndicator />
       <div className="divider-v" />
 
-      {mode === 'inventory' ? (
-        <Tooltip label="Select">
-          <button className="btn icon" disabled>
-            <MousePointer2 size={17} />
-          </button>
-        </Tooltip>
-      ) : isWallMode ? (
+      {mode === 'inventory' ? null : isWallMode ? (
         WALL_TOOLS.map((t) => (
           <Tooltip key={t.tool} label={t.label}>
             <button className={`btn icon ${wallTool === t.tool ? 'active' : ''}`} onClick={() => setWallTool(t.tool)}>
@@ -170,11 +166,18 @@ export default function Toolbar() {
         </button>
       </Tooltip>
       {mode === 'inventory' && (
-        <Tooltip label="Inventory Log">
-          <button className="btn icon" onClick={openLogViewer}>
-            <History size={17} />
-          </button>
-        </Tooltip>
+        <>
+          <Tooltip label="Inventory Log">
+            <button className="btn icon" onClick={openLogViewer}>
+              <History size={17} />
+            </button>
+          </Tooltip>
+          <Tooltip label="Inventory Database">
+            <button className="btn icon" onClick={openInventoryDb}>
+              <Database size={17} />
+            </button>
+          </Tooltip>
+        </>
       )}
 
       <div className="divider-v" />

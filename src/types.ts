@@ -140,8 +140,6 @@ export interface Settings {
   showCompartments: boolean;
   /** Default thickness (inches) applied to newly-drawn walls. */
   wallThickness: number;
-  /** Snap wall drawing/dragging to 15° increments. */
-  wallAngleSnap: boolean;
   mode: AppMode;
 }
 

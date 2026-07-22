@@ -3,17 +3,17 @@ import { useStore, useActiveRoom } from '../store/store';
 import { fromInches, toInches, UNIT_LABEL } from '../lib/units';
 import { canMergeAt, wallVector } from '../lib/walls';
 import NumberField from './NumberField';
+import LengthField from './LengthField';
 
 export default function WallInspector() {
   const room = useActiveRoom();
   const wallSelection = useStore((s) => s.wallSelection);
   const units = useStore((s) => s.settings.units);
-  const wallAngleSnap = useStore((s) => s.settings.wallAngleSnap);
-  const toggleWallAngleSnap = useStore((s) => s.toggleWallAngleSnap);
   const defaultThickness = useStore((s) => s.settings.wallThickness);
   const setWallThicknessDefault = useStore((s) => s.setWallThicknessDefault);
 
   const updateWallThickness = useStore((s) => s.updateWallThickness);
+  const setWallLength = useStore((s) => s.setWallLength);
   const toggleWallCurved = useStore((s) => s.toggleWallCurved);
   const setWallCurveOffset = useStore((s) => s.setWallCurveOffset);
   const deleteWall = useStore((s) => s.deleteWall);
@@ -43,10 +43,6 @@ export default function WallInspector() {
               onCommit={(v) => setWallThicknessDefault(toInches(v ?? fromInches(defaultThickness, units), units))}
             />
           </div>
-          <label className="check-row">
-            <input type="checkbox" checked={wallAngleSnap} onChange={toggleWallAngleSnap} />
-            Snap angles to 15°
-          </label>
           <div className="section">
             <span className="label">Floor</span>
             <div className="swatches">
@@ -90,7 +86,7 @@ export default function WallInspector() {
         <div className="inspector-body">
           <div className="section">
             <span className="label">Length</span>
-            <p className="wall-length">{fromInches(length, units).toFixed(1)} {u}</p>
+            <LengthField valueIn={length} unit={units} onCommit={(v) => setWallLength(wall.id, v)} />
           </div>
           <div className="section">
             <span className="label">Thickness</span>

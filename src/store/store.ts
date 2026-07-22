@@ -167,6 +167,7 @@ interface AppState extends Doc {
   logViewerOpen: boolean;
   logSearch: string;
   logScopeFilter: LogScope | 'all';
+  inventoryDbOpen: boolean;
 
   wallTool: WallTool;
   wallDraft: { startVertexId: string; lastVertexId: string } | null;
@@ -188,7 +189,6 @@ interface AppState extends Doc {
   toggleShowAllLabels: () => void;
   toggleShowCompartments: () => void;
   setWallThicknessDefault: (v: number) => void;
-  toggleWallAngleSnap: () => void;
   setMode: (mode: AppMode) => void;
   setObjectTool: (tool: ObjectTool) => void;
 
@@ -203,6 +203,8 @@ interface AppState extends Doc {
   openLogViewer: () => void;
   closeLogViewer: () => void;
   setLogSearch: (q: string) => void;
+  openInventoryDb: () => void;
+  closeInventoryDb: () => void;
   setLogScopeFilter: (scope: LogScope | 'all') => void;
 
   // Room actions
@@ -211,7 +213,6 @@ interface AppState extends Doc {
   deleteRoom: (id: string) => void;
   duplicateRoom: (id: string) => string | null;
   importRoom: (payload: RoomFilePayload) => string;
-  reorderRoom: (id: string, dir: -1 | 1) => void;
   setActiveRoom: (id: string) => void;
   setRoomCamera: (id: string, camera: CameraState) => void;
   setFloorStyle: (color: string, opacity: number) => void;
@@ -279,10 +280,11 @@ interface AppState extends Doc {
 
   // Wall designer
   setWallTool: (tool: WallTool) => void;
-  commitWallPoint: (point: { x: number; y: number }) => void;
+  commitWallPoint: (point: { x: number; y: number }, angleSnapOn?: boolean) => void;
   cancelWallDraft: () => void;
   selectWallEntity: (sel: WallEntitySelection) => void;
   updateWallThickness: (wallId: string, thickness: number) => void;
+  setWallLength: (wallId: string, lengthIn: number) => void;
   toggleWallCurved: (wallId: string) => void;
   setWallCurveOffset: (wallId: string, offset: number) => void;
   moveVertex: (vertexId: string, x: number, y: number) => void;
@@ -576,7 +578,6 @@ export const useStore = create<AppState>()(
         showAllLabels: false,
         showCompartments: false,
         wallThickness: 6,
-        wallAngleSnap: true,
         mode: 'design',
       },
 
@@ -599,6 +600,7 @@ export const useStore = create<AppState>()(
       logViewerOpen: false,
       logSearch: '',
       logScopeFilter: 'all',
+      inventoryDbOpen: false,
 
       wallTool: 'select',
       wallDraft: null,
@@ -618,7 +620,6 @@ export const useStore = create<AppState>()(
       toggleShowAllLabels: () => set((s) => ({ settings: { ...s.settings, showAllLabels: !s.settings.showAllLabels } })),
       toggleShowCompartments: () => set((s) => ({ settings: { ...s.settings, showCompartments: !s.settings.showCompartments } })),
       setWallThicknessDefault: (v) => set((s) => ({ settings: { ...s.settings, wallThickness: Math.max(1, v) } })),
-      toggleWallAngleSnap: () => set((s) => ({ settings: { ...s.settings, wallAngleSnap: !s.settings.wallAngleSnap } })),
       setMode: (mode) =>
         set((s) => ({
           settings: { ...s.settings, mode },
@@ -650,6 +651,8 @@ export const useStore = create<AppState>()(
       closeLogViewer: () => set({ logViewerOpen: false }),
       setLogSearch: (q) => set({ logSearch: q }),
       setLogScopeFilter: (scope) => set({ logScopeFilter: scope }),
+      openInventoryDb: () => set({ inventoryDbOpen: true }),
+      closeInventoryDb: () => set({ inventoryDbOpen: false }),
 
       addRoom: (name) => {
         const room = emptyRoom(name?.trim() || 'New Room');
@@ -728,15 +731,6 @@ export const useStore = create<AppState>()(
         }));
         return room.id;
       },
-      reorderRoom: (id, dir) =>
-        set((s) => {
-          const idx = s.roomOrder.indexOf(id);
-          const next = idx + dir;
-          if (idx < 0 || next < 0 || next >= s.roomOrder.length) return {};
-          const order = [...s.roomOrder];
-          [order[idx], order[next]] = [order[next], order[idx]];
-          return { ...withHistory(s, 'reorder-room'), roomOrder: order };
-        }),
       setActiveRoom: (id) =>
         set((s) => {
           if (!s.rooms[id] || s.activeRoomId === id) return {};
@@ -1323,13 +1317,13 @@ export const useStore = create<AppState>()(
 
       setWallTool: (tool) => set({ wallTool: tool, wallDraft: tool === 'draw' ? get().wallDraft : null }),
       setObjectTool: (tool) => set({ objectTool: tool }),
-      commitWallPoint: (point) =>
+      commitWallPoint: (point, angleSnapOn = true) =>
         set((s) => {
           const room = s.rooms[s.activeRoomId];
           if (!room) return {};
           const draft = s.wallDraft;
           const thickness = s.settings.wallThickness;
-          const candidate = computeWallCandidate(room.vertices, draft, point, s.settings.wallAngleSnap);
+          const candidate = computeWallCandidate(room.vertices, draft, point, angleSnapOn);
 
           if (!draft) {
             const vertex = candidate.snappedVertexId ? room.vertices[candidate.snappedVertexId] : makeVertex(candidate.point.x, candidate.point.y);
@@ -1371,6 +1365,25 @@ export const useStore = create<AppState>()(
             const w = room.walls[wallId];
             if (!w) return room;
             return { ...room, walls: { ...room.walls, [wallId]: { ...w, thickness: Math.max(1, thickness) } } };
+          }),
+        ),
+      setWallLength: (wallId, lengthIn) =>
+        set((s) =>
+          mutateActiveRoom(s, 'wall-length:' + wallId, (room) => {
+            const w = room.walls[wallId];
+            if (!w) return room;
+            const a = room.vertices[w.a];
+            const b = room.vertices[w.b];
+            if (!a || !b) return room;
+            const clamped = Math.max(1, lengthIn);
+            const dx = b.x - a.x;
+            const dy = b.y - a.y;
+            const curLen = Math.hypot(dx, dy) || 1;
+            const ux = dx / curLen;
+            const uy = dy / curLen;
+            const nextB = { ...b, x: a.x + ux * clamped, y: a.y + uy * clamped };
+            const nextRoom = { ...room, vertices: { ...room.vertices, [b.id]: nextB } };
+            return recomputeFloors(nextRoom);
           }),
         ),
       toggleWallCurved: (wallId) =>

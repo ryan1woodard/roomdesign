@@ -4,6 +4,7 @@ import Konva from 'konva';
 import { useStore, useActiveRoom } from '../store/store';
 import { objectsMatchingSearch } from '../lib/selectors';
 import { computeVisibleBounds } from '../lib/bounds';
+import { computeWallCandidate } from '../lib/walls';
 import ObjectNode from './ObjectNode';
 import TransformTools from './TransformTools';
 import WallLayer from './WallLayer';
@@ -42,6 +43,7 @@ export default function RoomCanvas() {
   const lastRoomId = useRef(room.id);
   const camCommitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [wallCursor, setWallCursor] = useState<{ x: number; y: number } | null>(null);
+  const [wallSnapVertexId, setWallSnapVertexId] = useState<string | null>(null);
   const wallGestureStart = useRef<{ x: number; y: number } | null>(null);
   const lastWallCommit = useRef<{ point: { x: number; y: number }; time: number } | null>(null);
   const fitAnimRef = useRef<number | null>(null);
@@ -54,6 +56,7 @@ export default function RoomCanvas() {
   const search = useStore((s) => s.search);
   const wallTool = useStore((s) => s.wallTool);
   const wallSelection = useStore((s) => s.wallSelection);
+  const wallDraft = useStore((s) => s.wallDraft);
   const objectTool = useStore((s) => s.objectTool);
   const fitToViewToken = useStore((s) => s.fitToViewToken);
 
@@ -64,6 +67,7 @@ export default function RoomCanvas() {
   const openPicker = useStore((s) => s.openPicker);
   const openContextMenu = useStore((s) => s.openContextMenu);
   const setRoomCamera = useStore((s) => s.setRoomCamera);
+  const requestFitToView = useStore((s) => s.requestFitToView);
   const commitWallPoint = useStore((s) => s.commitWallPoint);
   const cancelWallDraft = useStore((s) => s.cancelWallDraft);
   const selectWallEntity = useStore((s) => s.selectWallEntity);
@@ -75,6 +79,15 @@ export default function RoomCanvas() {
   const activeLayer = layers.find((l) => l.id === room.activeLayerId);
   const isWallMode = mode === 'design' && activeLayer?.kind === 'wall';
   const wallLayer = layers.find((l) => l.kind === 'wall');
+
+  // Automatic Fit to View on startup: whenever the app is loaded/reloaded/
+  // reopened, frame the visible workspace without requiring a manual click.
+  // A tick's delay lets the window/stage settle to its real size first.
+  useEffect(() => {
+    const id = requestAnimationFrame(() => requestFitToView());
+    return () => cancelAnimationFrame(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Restore camera + clear live drawing state whenever the active room changes.
   useEffect(() => {
@@ -224,10 +237,12 @@ export default function RoomCanvas() {
     return lines;
   }, [settings.gridVisible, cam, w, h]);
 
-  const objectList = useMemo(
-    () => Object.values(objects).filter((o) => visibleLayerIds.has(o.layerId)),
-    [objects, visibleLayerIds],
-  );
+  const objectList = useMemo(() => {
+    const layerIndex = new Map(layers.map((l, i) => [l.id, i]));
+    return Object.values(objects)
+      .filter((o) => visibleLayerIds.has(o.layerId))
+      .sort((a, b) => (layerIndex.get(a.layerId) ?? 0) - (layerIndex.get(b.layerId) ?? 0));
+  }, [objects, visibleLayerIds, layers]);
 
   // Fit-to-view: animate the camera to frame every visible object/wall.
   useEffect(() => {
@@ -305,9 +320,21 @@ export default function RoomCanvas() {
             commitCameraDebounced(next);
           }
         }}
-        onMouseMove={() => {
-          if (isWallMode && wallTool !== 'select') {
+        onMouseMove={(e) => {
+          if (isWallMode && wallTool === 'draw') {
+            const raw = worldPointFromStage();
+            if (raw) {
+              const angleSnapOn = !e.evt.altKey;
+              const candidate = computeWallCandidate(room.vertices, wallDraft, raw, angleSnapOn);
+              setWallCursor(candidate.point);
+              setWallSnapVertexId(candidate.snappedVertexId);
+            } else {
+              setWallCursor(null);
+              setWallSnapVertexId(null);
+            }
+          } else if (isWallMode && wallTool !== 'select') {
             setWallCursor(worldPointFromStage());
+            setWallSnapVertexId(null);
           }
           const now = performance.now();
           if (now - lastCursorUpdate.current > 60) {
@@ -330,8 +357,9 @@ export default function RoomCanvas() {
             clearSelection();
           }
         }}
-        onMouseUp={() => {
+        onMouseUp={(e) => {
           if (!isWallMode || wallTool !== 'draw') return;
+          const angleSnapOn = !e.evt.altKey;
           const upPoint = worldPointFromStage();
           if (!upPoint) return;
 
@@ -359,12 +387,12 @@ export default function RoomCanvas() {
 
           if (!draftBefore) {
             const downPoint = wallGestureStart.current ?? upPoint;
-            commitWallPoint(downPoint);
+            commitWallPoint(downPoint, angleSnapOn);
             const dragged = Math.hypot(upPoint.x - downPoint.x, upPoint.y - downPoint.y) > 3;
-            if (dragged) commitWallPoint(upPoint);
+            if (dragged) commitWallPoint(upPoint, angleSnapOn);
             lastWallCommit.current = { point: dragged ? upPoint : downPoint, time: now };
           } else {
-            commitWallPoint(upPoint);
+            commitWallPoint(upPoint, angleSnapOn);
             lastWallCommit.current = { point: upPoint, time: now };
           }
           wallGestureStart.current = null;
@@ -385,6 +413,7 @@ export default function RoomCanvas() {
             wallTool={isWallMode ? wallTool : 'select'}
             wallSelection={wallSelection}
             wallCursorIn={wallCursor}
+            snapTargetVertexId={wallSnapVertexId}
             visible={wallLayer ? visibleLayerIds.has(wallLayer.id) : false}
             interactive={isWallMode}
           />

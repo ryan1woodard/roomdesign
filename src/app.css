@@ -1754,3 +1754,122 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ---------------- Panel head chevron (Rooms / Layers collapse state) ---------------- */
+.panel-chevron {
+  color: var(--text-2);
+  flex-shrink: 0;
+}
+
+/* ---------------- Inventory database ---------------- */
+.inventory-db {
+  width: min(1160px, 95vw);
+  height: min(700px, 88vh);
+  background: var(--panel-solid);
+  border: 1px solid var(--stroke-strong);
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow-2);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.inventory-db-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--stroke);
+  flex-shrink: 0;
+}
+.inventory-db-head h3 {
+  margin: 0;
+  font-size: 16px;
+}
+.inventory-db-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--stroke);
+  flex-shrink: 0;
+}
+.inventory-db-toolbar .log-search {
+  width: 220px;
+}
+.inventory-db-toolbar-spacer {
+  flex: 1;
+}
+.inventory-db-table-wrap {
+  flex: 1;
+  overflow: auto;
+  padding: 0 18px 18px;
+}
+.inventory-db-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.inventory-db-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--panel-solid);
+  text-align: left;
+  padding: 8px 10px;
+  color: var(--text-2);
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--stroke-strong);
+  z-index: 1;
+}
+.inventory-db-table thead th:hover {
+  color: var(--text-0);
+}
+.inventory-db-table thead th.num {
+  text-align: right;
+}
+.inventory-db-table tbody td {
+  padding: 3px 6px;
+  border-bottom: 1px solid var(--stroke);
+  vertical-align: middle;
+}
+.inventory-db-table tbody tr:hover {
+  background: var(--bg-1);
+}
+.inventory-db-empty {
+  text-align: center;
+  color: var(--text-2);
+  padding: 24px !important;
+}
+.db-cell {
+  width: 100%;
+  min-width: 0;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  padding: 5px 6px;
+  color: var(--text-0);
+  font-size: 13px;
+}
+.db-cell:hover {
+  border-color: var(--stroke);
+}
+.db-cell:focus {
+  border-color: rgba(79, 140, 255, 0.6);
+  background: var(--bg-1);
+  outline: none;
+}
+.db-cell.num {
+  text-align: right;
+}
+.db-location {
+  display: flex;
+  gap: 4px;
+  min-width: 0;
+}
+.db-location .db-cell {
+  min-width: 0;
+  flex: 1;
+}

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Eye, EyeOff, ChevronUp, ChevronDown, Plus, Layers, Trash2, Layers3 } from 'lucide-react';
+import { Eye, EyeOff, ChevronUp, ChevronDown, ChevronRight, Plus, Layers, Trash2, Layers3, Pencil } from 'lucide-react';
 import { useStore, useActiveRoom } from '../store/store';
 
 export default function LayersPanel() {
@@ -23,6 +23,7 @@ export default function LayersPanel() {
   return (
     <div className="layers-panel glass">
       <div className="panel-head" onClick={() => setCollapsed((c) => !c)}>
+        {collapsed ? <ChevronRight size={13} className="panel-chevron" /> : <ChevronDown size={13} className="panel-chevron" />}
         <Layers size={14} />
         <span>Layers</span>
         <button
@@ -88,6 +89,15 @@ export default function LayersPanel() {
                   </span>
                 )}
                 <div className="layer-actions">
+                  <button
+                    className="btn icon"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setEditing(l.id);
+                    }}
+                  >
+                    <Pencil size={13} />
+                  </button>
                   <button
                     className="btn icon"
                     disabled={idx === layers.length - 1}

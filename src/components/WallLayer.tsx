@@ -26,6 +26,8 @@ interface Props {
   wallTool: WallTool;
   wallSelection: WallEntitySelection;
   wallCursorIn: { x: number; y: number } | null;
+  /** The vertex the draw cursor is currently snapped onto, if any — highlighted so snapping feels predictable. */
+  snapTargetVertexId?: string | null;
   visible: boolean;
   /** Whether Wall Designer Mode is actually active (the Walls layer is the active layer). */
   interactive: boolean;
@@ -41,7 +43,7 @@ function synthVertices(wall: WallSegment, pts: { a: WallVertex; b: WallVertex })
   return { [wall.a]: pts.a, [wall.b]: pts.b };
 }
 
-export default function WallLayer({ room, px, units, wallTool, wallSelection, wallCursorIn, visible, interactive }: Props) {
+export default function WallLayer({ room, px, units, wallTool, wallSelection, wallCursorIn, snapTargetVertexId, visible, interactive }: Props) {
   const selectWallEntity = useStore((s) => s.selectWallEntity);
   const moveVertex = useStore((s) => s.moveVertex);
   const splitWallAt = useStore((s) => s.splitWallAt);
@@ -49,6 +51,7 @@ export default function WallLayer({ room, px, units, wallTool, wallSelection, wa
   const moveOpeningAlongWall = useStore((s) => s.moveOpeningAlongWall);
   const wallDraft = useStore((s) => s.wallDraft);
   const [hoveredOpeningId, setHoveredOpeningId] = useState<string | null>(null);
+  const [hoveredVertexId, setHoveredVertexId] = useState<string | null>(null);
 
   const openingsByWall = useMemo(() => {
     const map: Record<string, WallOpening[]> = {};
@@ -298,16 +301,23 @@ export default function WallLayer({ room, px, units, wallTool, wallSelection, wa
         wallTool === 'select' &&
         Object.values(room.vertices).map((v) => {
           const selected = wallSelection?.type === 'vertex' && wallSelection.id === v.id;
+          const hovered = hoveredVertexId === v.id;
+          const emphasized = selected || hovered;
           return (
             <Circle
               key={`handle-${v.id}`}
               x={v.x * px}
               y={v.y * px}
-              radius={6}
-              fill={selected ? WALL_COLOR_SELECTED : 'rgba(255,255,255,0.85)'}
-              stroke={selected ? '#fff' : 'rgba(0,0,0,0.3)'}
-              strokeWidth={1.5}
+              radius={emphasized ? 9 : 6}
+              fill={selected ? WALL_COLOR_SELECTED : hovered ? '#dce8ff' : 'rgba(255,255,255,0.85)'}
+              stroke={selected ? '#fff' : hovered ? WALL_COLOR_SELECTED : 'rgba(0,0,0,0.3)'}
+              strokeWidth={emphasized ? 2 : 1.5}
+              shadowColor={WALL_COLOR_SELECTED}
+              shadowBlur={hovered ? 10 : 0}
+              shadowOpacity={0.9}
               draggable
+              onMouseEnter={() => setHoveredVertexId(v.id)}
+              onMouseLeave={() => setHoveredVertexId((cur) => (cur === v.id ? null : cur))}
               onMouseDown={(e) => {
                 e.cancelBubble = true;
                 selectWallEntity({ type: 'vertex', id: v.id });
@@ -318,6 +328,29 @@ export default function WallLayer({ room, px, units, wallTool, wallSelection, wa
             />
           );
         })}
+
+      {/* Snap-target glow: the vertex the draw cursor is currently locked onto */}
+      {wallTool === 'draw' &&
+        snapTargetVertexId &&
+        room.vertices[snapTargetVertexId] &&
+        (() => {
+          const v = room.vertices[snapTargetVertexId];
+          return (
+            <Circle
+              key="snap-target"
+              x={v.x * px}
+              y={v.y * px}
+              radius={11}
+              fill="rgba(79,140,255,0.25)"
+              stroke={WALL_COLOR_SELECTED}
+              strokeWidth={2}
+              shadowColor={WALL_COLOR_SELECTED}
+              shadowBlur={14}
+              shadowOpacity={0.95}
+              listening={false}
+            />
+          );
+        })()}
 
       {/* Live drawing preview + dimension label */}
       {wallTool === 'draw' && wallDraft && wallCursorIn && (

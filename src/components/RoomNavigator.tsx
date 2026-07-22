@@ -1,9 +1,8 @@
 import { useMemo, useRef, useState } from 'react';
-import { FolderTree, Plus, Upload, Download, ChevronUp, ChevronDown, Copy, Trash2 } from 'lucide-react';
+import { FolderTree, Plus, Upload, ChevronRight, ChevronDown as ChevronDownIcon, Trash2, Pencil } from 'lucide-react';
 import { useStore, useToastStore } from '../store/store';
 import { computeVisibleBounds } from '../lib/bounds';
-import { downloadRoomFile, parseRoomFile } from '../lib/roomFile';
-import Tooltip from './Tooltip';
+import { parseRoomFile } from '../lib/roomFile';
 import type { Room } from '../types';
 
 function RoomThumb({ room }: { room: Room }) {
@@ -52,9 +51,7 @@ export default function RoomNavigator() {
   const addRoom = useStore((s) => s.addRoom);
   const renameRoom = useStore((s) => s.renameRoom);
   const deleteRoom = useStore((s) => s.deleteRoom);
-  const duplicateRoom = useStore((s) => s.duplicateRoom);
   const importRoom = useStore((s) => s.importRoom);
-  const reorderRoom = useStore((s) => s.reorderRoom);
   const setActiveRoom = useStore((s) => s.setActiveRoom);
   const mode = useStore((s) => s.settings.mode);
   const isDesign = mode === 'design';
@@ -77,34 +74,24 @@ export default function RoomNavigator() {
     }
   };
 
-  const handleExport = (room: Room) => {
-    try {
-      downloadRoomFile(room);
-      pushToast('success', `Exported "${room.name}" as a design file`);
-    } catch {
-      pushToast('error', `Could not export "${room.name}".`);
-    }
-  };
-
   return (
     <div className="room-nav glass">
       <div className="panel-head" onClick={() => setCollapsed((c) => !c)}>
+        {collapsed ? <ChevronRight size={13} className="panel-chevron" /> : <ChevronDownIcon size={13} className="panel-chevron" />}
         <FolderTree size={14} />
         <span>Rooms</span>
         {isDesign && (
           <>
-            <Tooltip label="Import Room">
-              <button
-                className="btn icon"
-                style={{ marginLeft: 'auto' }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  importInputRef.current?.click();
-                }}
-              >
-                <Upload size={15} />
-              </button>
-            </Tooltip>
+            <button
+              className="btn icon"
+              style={{ marginLeft: 'auto' }}
+              onClick={(e) => {
+                e.stopPropagation();
+                importInputRef.current?.click();
+              }}
+            >
+              <Upload size={15} />
+            </button>
             <input
               ref={importInputRef}
               type="file"
@@ -113,24 +100,22 @@ export default function RoomNavigator() {
               onClick={(e) => e.stopPropagation()}
               onChange={handleImportFile}
             />
-            <Tooltip label="Add Room">
-              <button
-                className="btn icon"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  addRoom();
-                }}
-              >
-                <Plus size={15} />
-              </button>
-            </Tooltip>
+            <button
+              className="btn icon"
+              onClick={(e) => {
+                e.stopPropagation();
+                addRoom();
+              }}
+            >
+              <Plus size={15} />
+            </button>
           </>
         )}
       </div>
 
       {!collapsed && (
         <div className="room-list">
-            {roomOrder.map((id, idx) => {
+            {roomOrder.map((id) => {
               const r = rooms[id];
               const active = id === activeRoomId;
               return (
@@ -174,41 +159,12 @@ export default function RoomNavigator() {
                           <div className="room-row-actions-slot">
                             <button
                               className="btn icon"
-                              disabled={idx === 0}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                reorderRoom(id, -1);
+                                setEditing(id);
                               }}
                             >
-                              <ChevronUp size={12} />
-                            </button>
-                            <button
-                              className="btn icon"
-                              disabled={idx === roomOrder.length - 1}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                reorderRoom(id, 1);
-                              }}
-                            >
-                              <ChevronDown size={12} />
-                            </button>
-                            <button
-                              className="btn icon"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                duplicateRoom(id);
-                              }}
-                            >
-                              <Copy size={12} />
-                            </button>
-                            <button
-                              className="btn icon"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleExport(r);
-                              }}
-                            >
-                              <Download size={12} />
+                              <Pencil size={12} />
                             </button>
                             {roomOrder.length > 1 && (
                               <button
