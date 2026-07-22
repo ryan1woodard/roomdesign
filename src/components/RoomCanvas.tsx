@@ -8,7 +8,6 @@ import { computeWallCandidate } from '../lib/walls';
 import ObjectNode from './ObjectNode';
 import TransformTools from './TransformTools';
 import WallLayer from './WallLayer';
-import Minimap from './Minimap';
 import StatusBar from './StatusBar';
 
 export const PX_PER_IN = 6; // world scale before stage zoom
@@ -476,11 +475,6 @@ export default function RoomCanvas() {
             )}
         </Layer>
       </Stage>
-
-      <Minimap room={room} cam={cam} viewportW={w} viewportH={h} px={PX_PER_IN} onJump={(next) => {
-        setCam(next);
-        commitCameraDebounced(next);
-      }} />
 
       <StatusBar zoomPct={cam.scale * 100} cursorWorld={liveCursor} />
     </>
