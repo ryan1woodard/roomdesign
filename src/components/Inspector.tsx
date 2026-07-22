@@ -5,6 +5,7 @@ import { fromInches, toInches, UNIT_LABEL } from '../lib/units';
 import { gridCells } from '../lib/shelf';
 import type { RoomObject } from '../types';
 import NumberField from './NumberField';
+import Tooltip from './Tooltip';
 
 const SWATCHES = ['#3b4a63', '#4a3b5f', '#3b5f4a', '#5f4a3b', '#5f3b4a', '#334', '#2a2f3a', '#4f8cff'];
 
@@ -79,9 +80,11 @@ export default function Inspector() {
         ) : (
           <strong className="name-field">{obj.name}</strong>
         )}
-        <button className="btn icon" onClick={clearSelection} title="Deselect">
-          <X size={15} />
-        </button>
+        <Tooltip label="Deselect">
+          <button className="btn icon" onClick={clearSelection}>
+            <X size={15} />
+          </button>
+        </Tooltip>
       </div>
 
       <div className="inspector-body">

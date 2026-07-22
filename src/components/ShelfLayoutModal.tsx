@@ -334,58 +334,55 @@ export default function ShelfLayoutModal() {
               })}
             </div>
 
-            {singleKey && singleMeta && (
-              <div className="cell-edit">
-                <input
-                  className="field"
-                  value={singleMeta.name}
-                  onChange={(e) => commit({ ...storage, cells: { ...storage.cells, [singleKey]: { ...singleMeta, name: e.target.value } } })}
-                />
-                <div className="seg">
-                  <button
-                    className={singleMeta.kind === 'drawer' ? 'active' : ''}
-                    onClick={() => commit({ ...storage, cells: { ...storage.cells, [singleKey]: { ...singleMeta, kind: 'drawer' } } })}
-                  >
-                    Drawer
-                  </button>
-                  <button
-                    className={singleMeta.kind === 'shelf' ? 'active' : ''}
-                    onClick={() => commit({ ...storage, cells: { ...storage.cells, [singleKey]: { ...singleMeta, kind: 'shelf' } } })}
-                  >
-                    Shelf
-                  </button>
+            <div className="shelf-modal-footer">
+              {singleKey && singleMeta ? (
+                <div className="cell-edit">
+                  <input
+                    className="field"
+                    value={singleMeta.name}
+                    onChange={(e) => commit({ ...storage, cells: { ...storage.cells, [singleKey]: { ...singleMeta, name: e.target.value } } })}
+                  />
+                  <div className="seg">
+                    <button
+                      className={singleMeta.kind === 'drawer' ? 'active' : ''}
+                      onClick={() => commit({ ...storage, cells: { ...storage.cells, [singleKey]: { ...singleMeta, kind: 'drawer' } } })}
+                    >
+                      Drawer
+                    </button>
+                    <button
+                      className={singleMeta.kind === 'shelf' ? 'active' : ''}
+                      onClick={() => commit({ ...storage, cells: { ...storage.cells, [singleKey]: { ...singleMeta, kind: 'shelf' } } })}
+                    >
+                      Shelf
+                    </button>
+                  </div>
+                  {isMergedSingle && (
+                    <button className="btn" onClick={handleUnmerge}>
+                      <Ungroup size={14} /> Unmerge
+                    </button>
+                  )}
                 </div>
-                {isMergedSingle && (
-                  <button className="btn" onClick={handleUnmerge}>
-                    <Ungroup size={14} /> Unmerge
-                  </button>
-                )}
-              </div>
-            )}
-
-            {selArr.length >= 2 && (
-              <div className="cell-edit">
-                {mergeRect ? (
-                  <button className="btn primary" onClick={handleMerge}>
-                    <Combine size={14} /> Merge {selArr.length} compartments
-                  </button>
-                ) : (
-                  <>
+              ) : selArr.length >= 2 ? (
+                <div className="cell-edit">
+                  {mergeRect ? (
+                    <button className="btn primary" onClick={handleMerge}>
+                      <Combine size={14} /> Merge {selArr.length} compartments
+                    </button>
+                  ) : (
                     <button className="btn" disabled>
                       <Combine size={14} /> Merge compartments
                     </button>
-                    <p className="hint">Select a rectangular block with no gaps to merge it into one compartment.</p>
-                  </>
-                )}
-              </div>
-            )}
-
-            {selArr.length === 0 && (
+                  )}
+                </div>
+              ) : null}
               <p className="hint">
-                Click a compartment to select it, Ctrl+click or Shift+click to select more, or drag to select a range. Drag the divider
-                lines to resize compartments.
+                {selArr.length === 0
+                  ? 'Click a compartment to select it, Ctrl+click or Shift+click to select more, or drag to select a range. Drag the divider lines to resize compartments.'
+                  : selArr.length >= 2 && !mergeRect
+                    ? 'Select a rectangular block with no gaps to merge it into one compartment.'
+                    : ' '}
               </p>
-            )}
+            </div>
           </motion.div>
         </motion.div>
       )}

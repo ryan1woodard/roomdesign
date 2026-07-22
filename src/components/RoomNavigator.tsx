@@ -3,6 +3,7 @@ import { FolderTree, Plus, Upload, Download, ChevronUp, ChevronDown, Copy, Trash
 import { useStore, useToastStore } from '../store/store';
 import { computeVisibleBounds } from '../lib/bounds';
 import { downloadRoomFile, parseRoomFile } from '../lib/roomFile';
+import Tooltip from './Tooltip';
 import type { Room } from '../types';
 
 function RoomThumb({ room }: { room: Room }) {
@@ -92,17 +93,18 @@ export default function RoomNavigator() {
         <span>Rooms</span>
         {isDesign && (
           <>
-            <button
-              className="btn icon"
-              style={{ marginLeft: 'auto' }}
-              title="Import a room design from a file"
-              onClick={(e) => {
-                e.stopPropagation();
-                importInputRef.current?.click();
-              }}
-            >
-              <Upload size={15} />
-            </button>
+            <Tooltip label="Import Room">
+              <button
+                className="btn icon"
+                style={{ marginLeft: 'auto' }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  importInputRef.current?.click();
+                }}
+              >
+                <Upload size={15} />
+              </button>
+            </Tooltip>
             <input
               ref={importInputRef}
               type="file"
@@ -111,16 +113,17 @@ export default function RoomNavigator() {
               onClick={(e) => e.stopPropagation()}
               onChange={handleImportFile}
             />
-            <button
-              className="btn icon"
-              title="Add room"
-              onClick={(e) => {
-                e.stopPropagation();
-                addRoom();
-              }}
-            >
-              <Plus size={15} />
-            </button>
+            <Tooltip label="Add Room">
+              <button
+                className="btn icon"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  addRoom();
+                }}
+              >
+                <Plus size={15} />
+              </button>
+            </Tooltip>
           </>
         )}
       </div>
@@ -169,58 +172,65 @@ export default function RoomNavigator() {
                         </div>
                         {isDesign && (
                           <div className="room-row-actions-slot">
-                            <button
-                              className="btn icon"
-                              disabled={idx === 0}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                reorderRoom(id, -1);
-                              }}
-                            >
-                              <ChevronUp size={12} />
-                            </button>
-                            <button
-                              className="btn icon"
-                              disabled={idx === roomOrder.length - 1}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                reorderRoom(id, 1);
-                              }}
-                            >
-                              <ChevronDown size={12} />
-                            </button>
-                            <button
-                              className="btn icon"
-                              title="Duplicate room"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                duplicateRoom(id);
-                              }}
-                            >
-                              <Copy size={12} />
-                            </button>
-                            <button
-                              className="btn icon"
-                              title="Export room design as a file"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleExport(r);
-                              }}
-                            >
-                              <Download size={12} />
-                            </button>
-                            {roomOrder.length > 1 && (
+                            <Tooltip label="Move Up">
                               <button
-                                className="btn icon danger"
-                                title="Delete room"
+                                className="btn icon"
+                                disabled={idx === 0}
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  if (confirm(`Delete "${r.name}"? This removes all its furniture and inventory.`))
-                                    deleteRoom(id);
+                                  reorderRoom(id, -1);
                                 }}
                               >
-                                <Trash2 size={12} />
+                                <ChevronUp size={12} />
                               </button>
+                            </Tooltip>
+                            <Tooltip label="Move Down">
+                              <button
+                                className="btn icon"
+                                disabled={idx === roomOrder.length - 1}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  reorderRoom(id, 1);
+                                }}
+                              >
+                                <ChevronDown size={12} />
+                              </button>
+                            </Tooltip>
+                            <Tooltip label="Duplicate">
+                              <button
+                                className="btn icon"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  duplicateRoom(id);
+                                }}
+                              >
+                                <Copy size={12} />
+                              </button>
+                            </Tooltip>
+                            <Tooltip label="Export">
+                              <button
+                                className="btn icon"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleExport(r);
+                                }}
+                              >
+                                <Download size={12} />
+                              </button>
+                            </Tooltip>
+                            {roomOrder.length > 1 && (
+                              <Tooltip label="Delete">
+                                <button
+                                  className="btn icon danger"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (confirm(`Delete "${r.name}"? This removes all its furniture and inventory.`))
+                                      deleteRoom(id);
+                                  }}
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                              </Tooltip>
                             )}
                           </div>
                         )}

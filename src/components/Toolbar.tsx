@@ -24,6 +24,7 @@ import { useStore, useActiveRoom } from '../store/store';
 import { ALL_UNITS, UNIT_LABEL } from '../lib/units';
 import type { ObjectKind } from '../types';
 import SaveIndicator from './SaveIndicator';
+import Tooltip from './Tooltip';
 
 const TOOLS: { kind: ObjectKind; icon: React.ReactNode; label: string }[] = [
   { kind: 'container', icon: <Boxes size={17} />, label: 'Shelf / Cabinet' },
@@ -34,10 +35,10 @@ const TOOLS: { kind: ObjectKind; icon: React.ReactNode; label: string }[] = [
 ];
 
 const WALL_TOOLS: { tool: 'select' | 'draw' | 'door' | 'window'; icon: React.ReactNode; label: string }[] = [
-  { tool: 'select', icon: <MousePointer2 size={17} />, label: 'Select & edit' },
-  { tool: 'draw', icon: <PencilLine size={17} />, label: 'Draw walls' },
-  { tool: 'door', icon: <DoorOpen size={17} />, label: 'Add door' },
-  { tool: 'window', icon: <RectangleHorizontal size={17} />, label: 'Add window' },
+  { tool: 'select', icon: <MousePointer2 size={17} />, label: 'Select' },
+  { tool: 'draw', icon: <PencilLine size={17} />, label: 'Draw Walls' },
+  { tool: 'door', icon: <DoorOpen size={17} />, label: 'Add Door' },
+  { tool: 'window', icon: <RectangleHorizontal size={17} />, label: 'Add Window' },
 ];
 
 export default function Toolbar() {
@@ -74,94 +75,106 @@ export default function Toolbar() {
       <div className="divider-v" />
 
       {mode === 'inventory' ? (
-        <button className="btn icon" title="Select & navigate" disabled>
-          <MousePointer2 size={17} />
-        </button>
+        <Tooltip label="Select">
+          <button className="btn icon" disabled>
+            <MousePointer2 size={17} />
+          </button>
+        </Tooltip>
       ) : isWallMode ? (
         WALL_TOOLS.map((t) => (
-          <button
-            key={t.tool}
-            className={`btn icon ${wallTool === t.tool ? 'active' : ''}`}
-            title={t.label}
-            onClick={() => setWallTool(t.tool)}
-          >
-            {t.icon}
-          </button>
+          <Tooltip key={t.tool} label={t.label}>
+            <button className={`btn icon ${wallTool === t.tool ? 'active' : ''}`} onClick={() => setWallTool(t.tool)}>
+              {t.icon}
+            </button>
+          </Tooltip>
         ))
       ) : (
         <>
           {TOOLS.map((t) => (
-            <button key={t.kind} className="btn icon" title={t.label} onClick={() => addObject(t.kind)}>
-              {t.icon}
-            </button>
+            <Tooltip key={t.kind} label={t.label}>
+              <button className="btn icon" onClick={() => addObject(t.kind)}>
+                {t.icon}
+              </button>
+            </Tooltip>
           ))}
           <div className="divider-v" />
-          <button
-            className={`btn icon ${objectTool === 'freeMove' ? 'active' : ''}`}
-            title="Free Move — drag the object anywhere"
-            onClick={() => setObjectTool(objectTool === 'freeMove' ? 'select' : 'freeMove')}
-          >
-            <Hand size={17} />
-          </button>
-          <button
-            className={`btn icon ${objectTool === 'move' ? 'active' : ''}`}
-            title="Move tool — drag the arrows to move the selected object by a precise amount"
-            onClick={() => setObjectTool(objectTool === 'move' ? 'select' : 'move')}
-          >
-            <Move size={17} />
-          </button>
-          <button
-            className={`btn icon ${objectTool === 'rotate' ? 'active' : ''}`}
-            title="Rotate tool — drag the dial to rotate the selected object by a precise amount"
-            onClick={() => setObjectTool(objectTool === 'rotate' ? 'select' : 'rotate')}
-          >
-            <RotateCw size={17} />
-          </button>
+          <Tooltip label="Free Move">
+            <button
+              className={`btn icon ${objectTool === 'freeMove' ? 'active' : ''}`}
+              onClick={() => setObjectTool(objectTool === 'freeMove' ? 'select' : 'freeMove')}
+            >
+              <Hand size={17} />
+            </button>
+          </Tooltip>
+          <Tooltip label="Move">
+            <button
+              className={`btn icon ${objectTool === 'move' ? 'active' : ''}`}
+              onClick={() => setObjectTool(objectTool === 'move' ? 'select' : 'move')}
+            >
+              <Move size={17} />
+            </button>
+          </Tooltip>
+          <Tooltip label="Rotate">
+            <button
+              className={`btn icon ${objectTool === 'rotate' ? 'active' : ''}`}
+              onClick={() => setObjectTool(objectTool === 'rotate' ? 'select' : 'rotate')}
+            >
+              <RotateCw size={17} />
+            </button>
+          </Tooltip>
         </>
       )}
 
       <div className="divider-v" />
 
-      <button className="btn icon" title="Undo (⌘Z)" disabled={!canUndo} style={{ opacity: canUndo ? 1 : 0.3 }} onClick={undo}>
-        <Undo2 size={17} />
-      </button>
-      <button className="btn icon" title="Redo (⌘⇧Z)" disabled={!canRedo} style={{ opacity: canRedo ? 1 : 0.3 }} onClick={redo}>
-        <Redo2 size={17} />
-      </button>
+      <Tooltip label="Undo">
+        <button className="btn icon" disabled={!canUndo} style={{ opacity: canUndo ? 1 : 0.3 }} onClick={undo}>
+          <Undo2 size={17} />
+        </button>
+      </Tooltip>
+      <Tooltip label="Redo">
+        <button className="btn icon" disabled={!canRedo} style={{ opacity: canRedo ? 1 : 0.3 }} onClick={redo}>
+          <Redo2 size={17} />
+        </button>
+      </Tooltip>
 
       <div className="divider-v" />
 
       {mode === 'design' && (
         <>
-          <button className={`btn icon ${settings.gridVisible ? 'active' : ''}`} title="Toggle grid" onClick={toggleGrid}>
-            <Grid3x3 size={17} />
-          </button>
-          <button className={`btn icon ${settings.snapToGrid ? 'active' : ''}`} title="Snap to grid" onClick={toggleSnap}>
-            <Magnet size={17} />
-          </button>
+          <Tooltip label="Grid">
+            <button className={`btn icon ${settings.gridVisible ? 'active' : ''}`} onClick={toggleGrid}>
+              <Grid3x3 size={17} />
+            </button>
+          </Tooltip>
+          <Tooltip label="Snap">
+            <button className={`btn icon ${settings.snapToGrid ? 'active' : ''}`} onClick={toggleSnap}>
+              <Magnet size={17} />
+            </button>
+          </Tooltip>
         </>
       )}
-      <button
-        className={`btn icon ${settings.showAllLabels ? 'active' : ''}`}
-        title="Show All Labels"
-        onClick={toggleShowAllLabels}
-      >
-        <Tags size={17} />
-      </button>
-      <button
-        className={`btn icon ${settings.showCompartments ? 'active' : ''}`}
-        title="Open Compartments — preview storage layout on containers"
-        onClick={toggleShowCompartments}
-      >
-        <LayoutGrid size={17} />
-      </button>
-      <button className="btn icon" title="Fit to view (F)" onClick={requestFitToView}>
-        <Maximize size={17} />
-      </button>
-      {mode === 'inventory' && (
-        <button className="btn icon" title="Inventory log" onClick={openLogViewer}>
-          <History size={17} />
+      <Tooltip label="Labels">
+        <button className={`btn icon ${settings.showAllLabels ? 'active' : ''}`} onClick={toggleShowAllLabels}>
+          <Tags size={17} />
         </button>
+      </Tooltip>
+      <Tooltip label="Open Compartments">
+        <button className={`btn icon ${settings.showCompartments ? 'active' : ''}`} onClick={toggleShowCompartments}>
+          <LayoutGrid size={17} />
+        </button>
+      </Tooltip>
+      <Tooltip label="Fit to View">
+        <button className="btn icon" onClick={requestFitToView}>
+          <Maximize size={17} />
+        </button>
+      </Tooltip>
+      {mode === 'inventory' && (
+        <Tooltip label="Inventory Log">
+          <button className="btn icon" onClick={openLogViewer}>
+            <History size={17} />
+          </button>
+        </Tooltip>
       )}
 
       <div className="divider-v" />

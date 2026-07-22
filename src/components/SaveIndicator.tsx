@@ -17,7 +17,7 @@ export default function SaveIndicator() {
 
   return (
     <div className="save-section">
-      <button className="save-btn" onClick={() => saveNow()} title="Save now">
+      <button className="save-btn" onClick={() => saveNow()}>
         <Save size={13} />
         Save
       </button>

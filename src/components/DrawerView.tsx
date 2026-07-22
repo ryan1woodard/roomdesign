@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, Plus, ArrowUpDown, Package } from 'lucide-react';
 import { useStore, useActiveRoom } from '../store/store';
 import { itemsInLocation, sortItems, itemMatches } from '../lib/selectors';
-import { cellName, cellKind, gridCells } from '../lib/shelf';
+import { cellName, cellKind } from '../lib/shelf';
 import ItemCard from './ItemCard';
 import ItemInspector from './ItemInspector';
 import type { SortMode } from '../types';
@@ -29,7 +29,6 @@ export default function DrawerView() {
   const closeDrawer = useStore((s) => s.closeDrawer);
   const addItem = useStore((s) => s.addItem);
   const inspectItem = useStore((s) => s.inspectItem);
-  const moveItem = useStore((s) => s.moveItem);
   const setItemOrder = useStore((s) => s.setItemOrder);
   const inspectItemId = useStore((s) => s.inspectItemId);
   const [dragId, setDragId] = useState<string | null>(null);
@@ -135,9 +134,6 @@ export default function DrawerView() {
                 ))}
               </div>
             </div>
-
-            {/* Move-to rail: drop a card here to relocate it. */}
-            <MoveRail currentObjId={obj.id} currentCell={loc.cellKey} onDropItem={(o, c) => dragId && moveItem(dragId, { objectId: o, cellKey: c })} />
           </motion.div>
 
           <AnimatePresence>
@@ -158,58 +154,5 @@ export default function DrawerView() {
         </motion.div>
       )}
     </AnimatePresence>
-  );
-}
-
-function MoveRail({
-  currentObjId,
-  currentCell,
-  onDropItem,
-}: {
-  currentObjId: string;
-  currentCell: string;
-  onDropItem: (objectId: string, cellKey: string) => void;
-}) {
-  const objects = useActiveRoom().objects;
-  const [hover, setHover] = useState<string | null>(null);
-
-  const targets = useMemo(() => {
-    const out: { objectId: string; cellKey: string; label: string }[] = [];
-    for (const o of Object.values(objects)) {
-      const keys = o.storage.type === 'grid' ? gridCells(o.storage).map((c) => c.key) : ['surface'];
-      for (const k of keys) {
-        if (o.id === currentObjId && k === currentCell) continue;
-        out.push({ objectId: o.id, cellKey: k, label: `${o.name} · ${cellName(o, k)}` });
-      }
-    }
-    return out;
-  }, [objects, currentObjId, currentCell]);
-
-  return (
-    <div className="move-rail">
-      <span className="label">Drag an item here to move it →</span>
-      <div className="move-targets">
-        {targets.map((t) => {
-          const id = `${t.objectId}|${t.cellKey}`;
-          return (
-            <div
-              key={id}
-              className={`move-target ${hover === id ? 'hover' : ''}`}
-              onDragOver={(e) => {
-                e.preventDefault();
-                setHover(id);
-              }}
-              onDragLeave={() => setHover(null)}
-              onDrop={() => {
-                onDropItem(t.objectId, t.cellKey);
-                setHover(null);
-              }}
-            >
-              {t.label}
-            </div>
-          );
-        })}
-      </div>
-    </div>
   );
 }

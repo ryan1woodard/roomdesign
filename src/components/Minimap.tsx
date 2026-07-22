@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Map } from 'lucide-react';
 import type { Room } from '../types';
 import { computeVisibleBounds } from '../lib/bounds';
+import Tooltip from './Tooltip';
 
 interface Camera {
   x: number;
@@ -59,17 +60,21 @@ export default function Minimap({ room, cam, viewportW, viewportH, px, onJump }:
 
   if (collapsed) {
     return (
-      <button className="minimap-collapsed glass" onClick={() => setCollapsed(false)} title="Show minimap">
-        <Map size={16} />
-      </button>
+      <Tooltip label="Minimap" side="top">
+        <button className="minimap-collapsed glass" onClick={() => setCollapsed(false)}>
+          <Map size={16} />
+        </button>
+      </Tooltip>
     );
   }
 
   return (
     <div className="minimap glass">
-      <button className="minimap-toggle" onClick={() => setCollapsed(true)} title="Hide minimap">
-        <Map size={13} />
-      </button>
+      <Tooltip label="Minimap" side="top">
+        <button className="minimap-toggle" onClick={() => setCollapsed(true)}>
+          <Map size={13} />
+        </button>
+      </Tooltip>
       <svg width={MM_W} height={MM_H} viewBox={`0 0 ${MM_W} ${MM_H}`} onClick={handleClick} style={{ cursor: 'pointer' }}>
         <rect x={0} y={0} width={MM_W} height={MM_H} fill="var(--bg-1)" rx={6} />
         {Object.values(room.walls).map((wallSeg) => {
