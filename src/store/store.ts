@@ -9,6 +9,7 @@ import type {
   Layer,
   Settings,
   Storage,
+  CellMeta,
   LocationRef,
   ObjectKind,
   SortMode,
@@ -35,7 +36,7 @@ import {
   mergeWalls as libMergeWalls,
   wallVector,
 } from '../lib/walls';
-import { cellName } from '../lib/shelf';
+import { cellName, MAX_GRID_SIZE } from '../lib/shelf';
 import type { RoomFilePayload } from '../lib/roomFile';
 
 localforage.config({ name: 'srs-lab-designer', storeName: 'state' });
@@ -57,6 +58,31 @@ export const useSaveStore = create<{
   saveStatus: 'saved',
   saveError: null,
   lastSavedAt: null,
+}));
+
+export interface Toast {
+  id: string;
+  kind: 'success' | 'error';
+  message: string;
+}
+
+const TOAST_DURATION_MS = 4000;
+
+/** A small transient notification queue — success/error confirmations for
+ * one-off actions like export/import, shown briefly and auto-dismissed
+ * rather than blocking with alert(). */
+export const useToastStore = create<{
+  toasts: Toast[];
+  push: (kind: Toast['kind'], message: string) => void;
+  dismiss: (id: string) => void;
+}>((set) => ({
+  toasts: [],
+  push: (kind, message) => {
+    const id = `toast-${nanoid(6)}`;
+    set((s) => ({ toasts: [...s.toasts, { id, kind, message }] }));
+    setTimeout(() => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })), TOAST_DURATION_MS);
+  },
+  dismiss: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
 }));
 
 const lfStorage = {
@@ -132,6 +158,7 @@ interface AppState extends Doc {
   selection: string[];
   openLocation: LocationRef | null;
   pickerObjectId: string | null;
+  shelfEditObjectId: string | null;
   search: string;
   sortMode: SortMode;
   inspectItemId: string | null;
@@ -159,6 +186,7 @@ interface AppState extends Doc {
   toggleGrid: () => void;
   toggleSnap: () => void;
   toggleShowAllLabels: () => void;
+  toggleShowCompartments: () => void;
   setWallThicknessDefault: (v: number) => void;
   toggleWallAngleSnap: () => void;
   setMode: (mode: AppMode) => void;
@@ -202,6 +230,13 @@ interface AppState extends Doc {
   removeObject: (id: string) => void;
   duplicateObject: (id: string) => string | null;
   setStorage: (id: string, storage: Storage) => void;
+  /** Merges the base cells within [rowStart..rowEnd] x [colStart..colEnd]
+   * into one compartment anchored at its top-left. Caller must have already
+   * validated the rectangle (see `rectFromSelection` in lib/shelf.ts); any
+   * items living in cells absorbed by the merge are reassigned to the new
+   * anchor key so nothing is orphaned. */
+  mergeCells: (id: string, rowStart: number, rowEnd: number, colStart: number, colEnd: number, name?: string) => void;
+  openShelfEditor: (id: string | null) => void;
 
   // Selection & clipboard
   setSelection: (ids: string[]) => void;
@@ -444,6 +479,29 @@ function cloneRoomWithNewIds(src: Room, newName: string): Room {
  * ids for every nested entity (same approach as `cloneRoomWithNewIds`).
  * Imported rooms always start with empty inventory — a design file never
  * carries `items`. */
+/** Defensively re-validates a grid storage's numeric bounds on import — a
+ * file's contents are never trusted to already respect the 20×20 cap or
+ * have internally-consistent merge geometry, even after `parseRoomFile`'s
+ * structural checks. */
+function clampImportedStorage(storage: Storage): Storage {
+  if (storage.type !== 'grid') return storage;
+  const rows = Math.max(1, Math.min(MAX_GRID_SIZE, Math.round(storage.rows)));
+  const cols = Math.max(1, Math.min(MAX_GRID_SIZE, Math.round(storage.cols)));
+  const rowFractions = Array.from({ length: rows }, (_, i) => storage.rowFractions[i] ?? 1);
+  const colFractions = Array.from({ length: cols }, (_, i) => storage.colFractions[i] ?? 1);
+
+  const merges: Record<string, { rowSpan: number; colSpan: number }> = {};
+  for (const [key, span] of Object.entries(storage.merges ?? {})) {
+    const [r, c] = key.split(':').map(Number);
+    if (!Number.isInteger(r) || !Number.isInteger(c) || r < 0 || c < 0 || r >= rows || c >= cols) continue;
+    const rowSpan = Math.max(1, Math.min(span.rowSpan, rows - r));
+    const colSpan = Math.max(1, Math.min(span.colSpan, cols - c));
+    if (rowSpan > 1 || colSpan > 1) merges[key] = { rowSpan, colSpan };
+  }
+
+  return { type: 'grid', rows, cols, rowFractions, colFractions, cells: storage.cells ?? {}, merges };
+}
+
 function roomFromImportedDesign(payload: RoomFilePayload): Room {
   const roomId = `room-${nanoid(8)}`;
   const layerIdMap = new Map<string, string>();
@@ -459,7 +517,7 @@ function roomFromImportedDesign(payload: RoomFilePayload): Room {
   for (const o of Object.values(payload.objects ?? {})) {
     const id = `obj-${nanoid(8)}`;
     objectIdMap.set(o.id, id);
-    objects[id] = { ...o, id, layerId: layerIdMap.get(o.layerId) ?? fallbackLayerId };
+    objects[id] = { ...o, id, layerId: layerIdMap.get(o.layerId) ?? fallbackLayerId, storage: clampImportedStorage(o.storage) };
   }
 
   const vertexIdMap = new Map<string, string>();
@@ -516,6 +574,7 @@ export const useStore = create<AppState>()(
         gridVisible: true,
         snapToGrid: true,
         showAllLabels: false,
+        showCompartments: false,
         wallThickness: 6,
         wallAngleSnap: true,
         mode: 'design',
@@ -531,6 +590,7 @@ export const useStore = create<AppState>()(
       selection: [],
       openLocation: null,
       pickerObjectId: null,
+      shelfEditObjectId: null,
       search: '',
       sortMode: 'manual',
       inspectItemId: null,
@@ -556,6 +616,7 @@ export const useStore = create<AppState>()(
       toggleGrid: () => set((s) => ({ settings: { ...s.settings, gridVisible: !s.settings.gridVisible } })),
       toggleSnap: () => set((s) => ({ settings: { ...s.settings, snapToGrid: !s.settings.snapToGrid } })),
       toggleShowAllLabels: () => set((s) => ({ settings: { ...s.settings, showAllLabels: !s.settings.showAllLabels } })),
+      toggleShowCompartments: () => set((s) => ({ settings: { ...s.settings, showCompartments: !s.settings.showCompartments } })),
       setWallThicknessDefault: (v) => set((s) => ({ settings: { ...s.settings, wallThickness: Math.max(1, v) } })),
       toggleWallAngleSnap: () => set((s) => ({ settings: { ...s.settings, wallAngleSnap: !s.settings.wallAngleSnap } })),
       setMode: (mode) =>
@@ -569,6 +630,7 @@ export const useStore = create<AppState>()(
           objectTool: 'select',
           openLocation: mode === 'design' ? null : s.openLocation,
           pickerObjectId: mode === 'design' ? null : s.pickerObjectId,
+          shelfEditObjectId: mode === 'inventory' ? null : s.shelfEditObjectId,
         })),
 
       loginUser: (name, email) =>
@@ -600,6 +662,7 @@ export const useStore = create<AppState>()(
           selection: [],
           openLocation: null,
           pickerObjectId: null,
+          shelfEditObjectId: null,
           wallSelection: null,
           wallDraft: null,
         }));
@@ -632,6 +695,7 @@ export const useStore = create<AppState>()(
             selection: [],
             openLocation: null,
             pickerObjectId: null,
+            shelfEditObjectId: null,
           };
         }),
       duplicateRoom: (id) => {
@@ -658,6 +722,7 @@ export const useStore = create<AppState>()(
           selection: [],
           openLocation: null,
           pickerObjectId: null,
+          shelfEditObjectId: null,
           wallSelection: null,
           wallDraft: null,
         }));
@@ -680,6 +745,7 @@ export const useStore = create<AppState>()(
             selection: [],
             openLocation: null,
             pickerObjectId: null,
+            shelfEditObjectId: null,
             inspectItemId: null,
             wallSelection: null,
             wallDraft: null,
@@ -862,6 +928,49 @@ export const useStore = create<AppState>()(
             return { ...room, objects: { ...room.objects, [id]: { ...cur, storage } } };
           }),
         ),
+      mergeCells: (id, rowStart, rowEnd, colStart, colEnd, name) =>
+        set((s) =>
+          mutateActiveRoom(s, 'merge-cells:' + id, (room) => {
+            const obj = room.objects[id];
+            if (!obj || obj.storage.type !== 'grid') return room;
+            const storage = obj.storage;
+            const anchorKey = `${rowStart}:${colStart}`;
+            const rowSpan = rowEnd - rowStart + 1;
+            const colSpan = colEnd - colStart + 1;
+
+            const absorbed = new Set<string>();
+            for (let r = rowStart; r <= rowEnd; r++) {
+              for (let c = colStart; c <= colEnd; c++) absorbed.add(`${r}:${c}`);
+            }
+
+            // Drop any pre-existing merges fully inside the new rectangle —
+            // they're being absorbed into this larger one.
+            const nextMerges: Record<string, { rowSpan: number; colSpan: number }> = {};
+            for (const [key, span] of Object.entries(storage.merges ?? {})) {
+              if (!absorbed.has(key)) nextMerges[key] = span;
+            }
+            nextMerges[anchorKey] = { rowSpan, colSpan };
+
+            const prevMeta = storage.cells[anchorKey];
+            const nextCells: Record<string, CellMeta> = { ...storage.cells };
+            for (const key of absorbed) {
+              if (key !== anchorKey) delete nextCells[key];
+            }
+            nextCells[anchorKey] = { name: name?.trim() || prevMeta?.name || 'Merged', kind: prevMeta?.kind ?? 'shelf' };
+
+            const nextStorage: Storage = { ...storage, merges: nextMerges, cells: nextCells };
+
+            const items = { ...room.items };
+            for (const it of Object.values(room.items)) {
+              if (it.objectId === id && absorbed.has(it.cellKey) && it.cellKey !== anchorKey) {
+                items[it.id] = { ...it, cellKey: anchorKey };
+              }
+            }
+
+            return { ...room, items, objects: { ...room.objects, [id]: { ...obj, storage: nextStorage } } };
+          }),
+        ),
+      openShelfEditor: (id) => set({ shelfEditObjectId: id }),
       setSelection: (ids) => set({ selection: ids }),
       clearSelection: () => set({ selection: [] }),
       copySelection: () =>

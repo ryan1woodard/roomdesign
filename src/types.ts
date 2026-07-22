@@ -18,24 +18,37 @@ export interface Layer {
   kind: 'object' | 'wall';
 }
 
+/** A merged compartment's extent, in base-cell units, anchored at its top-left cell. */
+export interface CellMerge {
+  rowSpan: number;
+  colSpan: number;
+}
+
 /**
  * Storage describes the "inside" of a room object.
  *  - `single`  → one location, conceptually the object's surface.
  *  - `grid`    → a shelf/cabinet split into rows × columns of compartments.
- *                Each cell is an independent storage location.
+ *                Each cell is an independent storage location, unless
+ *                merged with its neighbors (see `merges`).
  */
 export type Storage =
   | { type: 'single' }
   | {
       type: 'grid';
-      rows: number;
-      cols: number;
+      rows: number; // 1..20
+      cols: number; // 1..20
       /** Relative row heights, length === rows, sums are normalised on read. */
       rowFractions: number[];
       /** Relative column widths, length === cols. */
       colFractions: number[];
       /** Per-cell metadata keyed by `${row}:${col}`. */
       cells: Record<string, CellMeta>;
+      /** Merged compartments, keyed by the top-left cell's `${row}:${col}`.
+       * Every other cell within the span is "covered" — it has no
+       * independent identity while the merge exists (not addressable by
+       * item storage, not returned by `gridCells()`). Absent/undefined
+       * means no merges, so existing saved data is already valid. */
+      merges?: Record<string, CellMerge>;
     };
 
 export interface CellMeta {
@@ -122,6 +135,9 @@ export interface Settings {
   snapToGrid: boolean;
   /** Global override — show every object's label regardless of hover state. */
   showAllLabels: boolean;
+  /** Preview containers' internal compartment layout (shelf/drawer/grid
+   * divisions) directly on the canvas, without opening them. */
+  showCompartments: boolean;
   /** Default thickness (inches) applied to newly-drawn walls. */
   wallThickness: number;
   /** Snap wall drawing/dragging to 15° increments. */

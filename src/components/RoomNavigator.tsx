@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { FolderTree, Plus, Upload, Download, ChevronUp, ChevronDown, Copy, Trash2 } from 'lucide-react';
-import { useStore } from '../store/store';
+import { useStore, useToastStore } from '../store/store';
 import { computeVisibleBounds } from '../lib/bounds';
 import { downloadRoomFile, parseRoomFile } from '../lib/roomFile';
 import type { Room } from '../types';
@@ -61,6 +61,7 @@ export default function RoomNavigator() {
   const [collapsed, setCollapsed] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
+  const pushToast = useToastStore((s) => s.push);
 
   const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -69,8 +70,18 @@ export default function RoomNavigator() {
     try {
       const payload = parseRoomFile(await file.text());
       importRoom(payload);
+      pushToast('success', `Room imported as "${payload.name}"`);
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Could not import that file.');
+      pushToast('error', err instanceof Error ? err.message : 'Could not import that file.');
+    }
+  };
+
+  const handleExport = (room: Room) => {
+    try {
+      downloadRoomFile(room);
+      pushToast('success', `Exported "${room.name}" as a design file`);
+    } catch {
+      pushToast('error', `Could not export "${room.name}".`);
     }
   };
 
@@ -193,7 +204,7 @@ export default function RoomNavigator() {
                               title="Export room design as a file"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                downloadRoomFile(r);
+                                handleExport(r);
                               }}
                             >
                               <Download size={12} />

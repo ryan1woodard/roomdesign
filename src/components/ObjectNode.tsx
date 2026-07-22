@@ -1,9 +1,9 @@
 import { useEffect, useRef } from 'react';
-import { Group, Rect, Ellipse, Text, Circle } from 'react-konva';
+import { Group, Rect, Ellipse, Text, Circle, Line } from 'react-konva';
 import Konva from 'konva';
 import type { RoomObject, AppMode } from '../types';
 import type { ObjectTool } from '../store/store';
-import { gridCells, cellName, cellKind } from '../lib/shelf';
+import { gridCells, cellName, cellKind, storageCharacter } from '../lib/shelf';
 
 const LABEL_GAP = 6; // px, screen-space gap between object's top edge and its label
 const LABEL_W = 140;
@@ -22,6 +22,9 @@ interface Props {
   snapIn: number | null; // grid snap step in inches, or null — only used by the Free Move tool
   zoomScale: number; // current stage zoom (cam.scale)
   showAllLabels: boolean;
+  /** "Open Compartments" toolbar toggle — when off, a container renders as
+   * a plain solid object, same as any non-container shape. */
+  showCompartments: boolean;
   /** Design Mode resizes furniture, and moves/rotates it directly only when
    * the Free Move tool is active (the Move/Rotate tools use a dedicated
    * gizmo instead); Inventory Mode opens it instead. */
@@ -66,6 +69,7 @@ export default function ObjectNode({
   snapIn,
   zoomScale,
   showAllLabels,
+  showCompartments,
   mode,
   objectTool,
   registerNode,
@@ -123,6 +127,8 @@ export default function ObjectNode({
 
   const isContainer = obj.storage.type === 'grid';
   const cells = isContainer ? gridCells(obj.storage) : [];
+  const character = storageCharacter(obj);
+  const badgeVisible = isContainer && (showCompartments || showDetail) && (character === 'shelf' || character === 'drawer') && w > 40 && h > 24;
 
   const centerX = (obj.x + obj.width / 2) * px;
   const centerY = (obj.y + obj.height / 2) * px;
@@ -148,8 +154,9 @@ export default function ObjectNode({
     stroke,
     strokeWidth: strokeW,
     shadowColor: 'black',
-    shadowBlur: selected ? 18 : 10,
-    shadowOpacity: 0.4,
+    // Drawer units read slightly heavier/boxier than shelves or plain surfaces.
+    shadowBlur: selected ? 18 : character === 'drawer' ? 13 : 10,
+    shadowOpacity: character === 'drawer' ? 0.48 : 0.4,
     shadowOffsetY: 4,
   };
 
@@ -246,8 +253,9 @@ export default function ObjectNode({
           <Rect width={w} height={h} cornerRadius={obj.cornerRadius * px} {...commonShapeProps} />
         )}
 
-        {/* Container cell divisions */}
+        {/* Container cell divisions — only while "Open Compartments" is on. */}
         {isContainer &&
+          showCompartments &&
           cells.map((c) => {
             const cx = c.x * w;
             const cy = c.y * h;
@@ -277,6 +285,19 @@ export default function ObjectNode({
                     onOpenCell(obj.id, c.key);
                   }}
                 />
+                {/* Interior line work: a drawer front's pull, or a shelf's top highlight. */}
+                {kind === 'drawer' && cw > 18 && ch > 14 && (
+                  <Line
+                    points={[cx + cw * 0.3, cy + ch * 0.28, cx + cw * 0.7, cy + ch * 0.28]}
+                    stroke="rgba(255,255,255,0.28)"
+                    strokeWidth={Math.max(1, ch * 0.02)}
+                    lineCap="round"
+                    listening={false}
+                  />
+                )}
+                {kind === 'shelf' && cw > 18 && ch > 14 && (
+                  <Line points={[cx + 2, cy + 1, cx + cw - 2, cy + 1]} stroke="rgba(255,255,255,0.22)" strokeWidth={1} listening={false} />
+                )}
                 {showDetail && cw > 30 && (
                   <Text
                     x={cx + 4}
@@ -310,6 +331,22 @@ export default function ObjectNode({
               </Group>
             );
           })}
+
+        {/* Storage-type corner badge: a tiny shelf or drawer glyph, so the
+            kind of container is recognizable even before opening it. */}
+        {badgeVisible && (
+          <Group x={w - 26} y={6} listening={false}>
+            <Rect width={20} height={15} cornerRadius={3} fill="rgba(10,13,20,0.85)" stroke="rgba(255,255,255,0.18)" strokeWidth={1} />
+            {character === 'shelf' ? (
+              <>
+                <Line points={[4, 5, 16, 5]} stroke="rgba(255,255,255,0.55)" strokeWidth={1} />
+                <Line points={[4, 10, 16, 10]} stroke="rgba(255,255,255,0.55)" strokeWidth={1} />
+              </>
+            ) : (
+              <Line points={[6, 10, 14, 10]} stroke="rgba(255,255,255,0.6)" strokeWidth={1.5} lineCap="round" />
+            )}
+          </Group>
+        )}
 
         {/* Inline text-object content */}
         {obj.kind === 'text' && (

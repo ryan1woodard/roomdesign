@@ -10,6 +10,8 @@ export default function CellPicker() {
   const openFromPicker = useStore((s) => s.openFromPicker);
 
   const obj = pickerObjectId ? room.objects[pickerObjectId] : null;
+  const total = obj && obj.storage.type === 'grid' ? obj.storage.rows * obj.storage.cols : 0;
+  const density = total <= 12 ? 'roomy' : total <= 48 ? 'cozy' : total <= 120 ? 'compact' : 'dense';
 
   return (
     <AnimatePresence>
@@ -48,7 +50,7 @@ export default function CellPicker() {
                 return (
                   <button
                     key={c.key}
-                    className={`picker-cell ${meta?.kind ?? 'shelf'}`}
+                    className={`picker-cell ${meta?.kind ?? 'shelf'} ${density}`}
                     style={{
                       left: `${c.x * 100}%`,
                       top: `${c.y * 100}%`,
@@ -57,9 +59,9 @@ export default function CellPicker() {
                     }}
                     onClick={() => openFromPicker({ objectId: obj.id, cellKey: c.key })}
                   >
-                    <span className="pc-name">{cellName(obj, c.key)}</span>
+                    {density !== 'dense' && <span className="pc-name">{cellName(obj, c.key)}</span>}
                     <span className="pc-count">
-                      <Package size={12} /> {count}
+                      <Package size={density === 'dense' ? 9 : 12} /> {count}
                     </span>
                   </button>
                 );

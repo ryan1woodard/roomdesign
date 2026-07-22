@@ -404,6 +404,7 @@ export default function RoomCanvas() {
               snapIn={snapIn}
               zoomScale={cam.scale}
               showAllLabels={settings.showAllLabels}
+              showCompartments={settings.showCompartments}
               mode={mode}
               objectTool={objectTool}
               registerNode={registerNode}

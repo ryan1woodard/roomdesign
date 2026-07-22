@@ -18,6 +18,7 @@ import {
   Move,
   RotateCw,
   Hand,
+  LayoutGrid,
 } from 'lucide-react';
 import { useStore, useActiveRoom } from '../store/store';
 import { ALL_UNITS, UNIT_LABEL } from '../lib/units';
@@ -46,6 +47,7 @@ export default function Toolbar() {
   const toggleGrid = useStore((s) => s.toggleGrid);
   const toggleSnap = useStore((s) => s.toggleSnap);
   const toggleShowAllLabels = useStore((s) => s.toggleShowAllLabels);
+  const toggleShowCompartments = useStore((s) => s.toggleShowCompartments);
   const setUnit = useStore((s) => s.setUnit);
   const undo = useStore((s) => s.undo);
   const redo = useStore((s) => s.redo);
@@ -145,6 +147,13 @@ export default function Toolbar() {
         onClick={toggleShowAllLabels}
       >
         <Tags size={17} />
+      </button>
+      <button
+        className={`btn icon ${settings.showCompartments ? 'active' : ''}`}
+        title="Open Compartments — preview storage layout on containers"
+        onClick={toggleShowCompartments}
+      >
+        <LayoutGrid size={17} />
       </button>
       <button className="btn icon" title="Fit to view (F)" onClick={requestFitToView}>
         <Maximize size={17} />

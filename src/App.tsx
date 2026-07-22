@@ -8,12 +8,14 @@ import RoomNavigator from './components/RoomNavigator';
 import Inspector from './components/Inspector';
 import WallInspector from './components/WallInspector';
 import CellPicker from './components/CellPicker';
+import ShelfLayoutModal from './components/ShelfLayoutModal';
 import DrawerView from './components/DrawerView';
 import ObjectContextMenu from './components/ObjectContextMenu';
 import LoadingScreen from './components/LoadingScreen';
 import LogViewer from './components/LogViewer';
 import LoginScreen from './components/LoginScreen';
 import UserMenu from './components/UserMenu';
+import ToastStack from './components/Toast';
 import { useStore, useActiveRoom, useSaveStore } from './store/store';
 import './app.css';
 
@@ -56,6 +58,8 @@ export default function App() {
   const openPicker = useStore((s) => s.openPicker);
   const openLocation = useStore((s) => s.openLocation);
   const pickerObjectId = useStore((s) => s.pickerObjectId);
+  const shelfEditObjectId = useStore((s) => s.shelfEditObjectId);
+  const openShelfEditor = useStore((s) => s.openShelfEditor);
   const clearSelection = useStore((s) => s.clearSelection);
   const closeContextMenu = useStore((s) => s.closeContextMenu);
   const contextMenu = useStore((s) => s.contextMenu);
@@ -86,6 +90,7 @@ export default function App() {
         if (wallDraft) cancelWallDraft();
         else if (openLocation) closeDrawer();
         else if (pickerObjectId) openPicker(null);
+        else if (shelfEditObjectId) openShelfEditor(null);
         else if (contextMenu) closeContextMenu();
         else if (wallSelection) selectWallEntity(null);
         else if (isWallMode && wallTool !== 'select') setWallTool('select');
@@ -138,6 +143,8 @@ export default function App() {
     openPicker,
     openLocation,
     pickerObjectId,
+    shelfEditObjectId,
+    openShelfEditor,
     clearSelection,
     contextMenu,
     closeContextMenu,
@@ -179,9 +186,11 @@ export default function App() {
       </div>
 
       <CellPicker />
+      <ShelfLayoutModal />
       <DrawerView />
       <ObjectContextMenu />
       <LogViewer />
+      <ToastStack />
     </div>
   );
 }

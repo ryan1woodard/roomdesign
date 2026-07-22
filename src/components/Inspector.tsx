@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Copy, Trash2, DoorOpen, Boxes, X, Move, RotateCw } from 'lucide-react';
+import { Copy, Trash2, DoorOpen, Boxes, X, Move, RotateCw, LayoutGrid } from 'lucide-react';
 import { useStore, useActiveRoom } from '../store/store';
 import { fromInches, toInches, UNIT_LABEL } from '../lib/units';
+import { gridCells } from '../lib/shelf';
 import type { RoomObject } from '../types';
-import ShelfEditor from './ShelfEditor';
 import NumberField from './NumberField';
 
 const SWATCHES = ['#3b4a63', '#4a3b5f', '#3b5f4a', '#5f4a3b', '#5f3b4a', '#334', '#2a2f3a', '#4f8cff'];
@@ -22,6 +22,7 @@ export default function Inspector() {
   const setStorage = useStore((s) => s.setStorage);
   const open = useStore((s) => s.open);
   const openPicker = useStore((s) => s.openPicker);
+  const openShelfEditor = useStore((s) => s.openShelfEditor);
   const clearSelection = useStore((s) => s.clearSelection);
   const objectTool = useStore((s) => s.objectTool);
 
@@ -231,7 +232,20 @@ export default function Inspector() {
                   </button>
                 )}
               </div>
-              {isContainer && <ShelfEditor obj={obj} />}
+              {isContainer && obj.storage.type === 'grid' && (
+                <div className="storage-summary">
+                  <span className="hint">
+                    {obj.storage.rows} × {obj.storage.cols} grid
+                    {(() => {
+                      const merged = gridCells(obj.storage).filter((c) => c.rowSpan > 1 || c.colSpan > 1).length;
+                      return merged > 0 ? `, ${merged} merged` : '';
+                    })()}
+                  </span>
+                  <button className="btn" onClick={() => openShelfEditor(obj.id)}>
+                    <LayoutGrid size={14} /> Edit Layout &amp; Compartments
+                  </button>
+                </div>
+              )}
             </div>
 
             <div className="inspector-actions">
