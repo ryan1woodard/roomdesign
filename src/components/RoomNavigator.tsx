@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react';
-import { FolderTree, Plus, ChevronUp, ChevronDown, Copy, Trash2 } from 'lucide-react';
+import { useMemo, useRef, useState } from 'react';
+import { FolderTree, Plus, Upload, Download, ChevronUp, ChevronDown, Copy, Trash2 } from 'lucide-react';
 import { useStore } from '../store/store';
 import { computeVisibleBounds } from '../lib/bounds';
+import { downloadRoomFile, parseRoomFile } from '../lib/roomFile';
 import type { Room } from '../types';
 
 function RoomThumb({ room }: { room: Room }) {
@@ -51,6 +52,7 @@ export default function RoomNavigator() {
   const renameRoom = useStore((s) => s.renameRoom);
   const deleteRoom = useStore((s) => s.deleteRoom);
   const duplicateRoom = useStore((s) => s.duplicateRoom);
+  const importRoom = useStore((s) => s.importRoom);
   const reorderRoom = useStore((s) => s.reorderRoom);
   const setActiveRoom = useStore((s) => s.setActiveRoom);
   const mode = useStore((s) => s.settings.mode);
@@ -58,6 +60,19 @@ export default function RoomNavigator() {
 
   const [collapsed, setCollapsed] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-selecting the same file to re-trigger onChange
+    if (!file) return;
+    try {
+      const payload = parseRoomFile(await file.text());
+      importRoom(payload);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Could not import that file.');
+    }
+  };
 
   return (
     <div className="room-nav glass">
@@ -65,16 +80,37 @@ export default function RoomNavigator() {
         <FolderTree size={14} />
         <span>Rooms</span>
         {isDesign && (
-          <button
-            className="btn icon"
-            style={{ marginLeft: 'auto' }}
-            onClick={(e) => {
-              e.stopPropagation();
-              addRoom();
-            }}
-          >
-            <Plus size={15} />
-          </button>
+          <>
+            <button
+              className="btn icon"
+              style={{ marginLeft: 'auto' }}
+              title="Import a room design from a file"
+              onClick={(e) => {
+                e.stopPropagation();
+                importInputRef.current?.click();
+              }}
+            >
+              <Upload size={15} />
+            </button>
+            <input
+              ref={importInputRef}
+              type="file"
+              accept="application/json,.json"
+              style={{ display: 'none' }}
+              onClick={(e) => e.stopPropagation()}
+              onChange={handleImportFile}
+            />
+            <button
+              className="btn icon"
+              title="Add room"
+              onClick={(e) => {
+                e.stopPropagation();
+                addRoom();
+              }}
+            >
+              <Plus size={15} />
+            </button>
+          </>
         )}
       </div>
 
@@ -130,7 +166,7 @@ export default function RoomNavigator() {
                                 reorderRoom(id, -1);
                               }}
                             >
-                              <ChevronUp size={13} />
+                              <ChevronUp size={12} />
                             </button>
                             <button
                               className="btn icon"
@@ -140,27 +176,39 @@ export default function RoomNavigator() {
                                 reorderRoom(id, 1);
                               }}
                             >
-                              <ChevronDown size={13} />
+                              <ChevronDown size={12} />
                             </button>
                             <button
                               className="btn icon"
+                              title="Duplicate room"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 duplicateRoom(id);
                               }}
                             >
-                              <Copy size={13} />
+                              <Copy size={12} />
+                            </button>
+                            <button
+                              className="btn icon"
+                              title="Export room design as a file"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                downloadRoomFile(r);
+                              }}
+                            >
+                              <Download size={12} />
                             </button>
                             {roomOrder.length > 1 && (
                               <button
                                 className="btn icon danger"
+                                title="Delete room"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   if (confirm(`Delete "${r.name}"? This removes all its furniture and inventory.`))
                                     deleteRoom(id);
                                 }}
                               >
-                                <Trash2 size={13} />
+                                <Trash2 size={12} />
                               </button>
                             )}
                           </div>

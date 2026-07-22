@@ -36,6 +36,7 @@ import {
   wallVector,
 } from '../lib/walls';
 import { cellName } from '../lib/shelf';
+import type { RoomFilePayload } from '../lib/roomFile';
 
 localforage.config({ name: 'srs-lab-designer', storeName: 'state' });
 
@@ -181,6 +182,7 @@ interface AppState extends Doc {
   renameRoom: (id: string, name: string) => void;
   deleteRoom: (id: string) => void;
   duplicateRoom: (id: string) => string | null;
+  importRoom: (payload: RoomFilePayload) => string;
   reorderRoom: (id: string, dir: -1 | 1) => void;
   setActiveRoom: (id: string) => void;
   setRoomCamera: (id: string, camera: CameraState) => void;
@@ -438,6 +440,73 @@ function cloneRoomWithNewIds(src: Room, newName: string): Room {
   };
 }
 
+/** Rebuilds a full Room from an imported design payload, generating fresh
+ * ids for every nested entity (same approach as `cloneRoomWithNewIds`).
+ * Imported rooms always start with empty inventory — a design file never
+ * carries `items`. */
+function roomFromImportedDesign(payload: RoomFilePayload): Room {
+  const roomId = `room-${nanoid(8)}`;
+  const layerIdMap = new Map<string, string>();
+  const layers: Layer[] = payload.layers.map((l) => {
+    const id = `layer-${nanoid(6)}`;
+    layerIdMap.set(l.id, id);
+    return { ...l, id };
+  });
+  const fallbackLayerId = layers.find((l) => l.kind === 'object')?.id ?? layers[0]?.id ?? '';
+
+  const objectIdMap = new Map<string, string>();
+  const objects: Record<string, RoomObject> = {};
+  for (const o of Object.values(payload.objects ?? {})) {
+    const id = `obj-${nanoid(8)}`;
+    objectIdMap.set(o.id, id);
+    objects[id] = { ...o, id, layerId: layerIdMap.get(o.layerId) ?? fallbackLayerId };
+  }
+
+  const vertexIdMap = new Map<string, string>();
+  const vertices: Room['vertices'] = {};
+  for (const v of Object.values(payload.vertices ?? {})) {
+    const nv = makeVertex(v.x, v.y);
+    vertexIdMap.set(v.id, nv.id);
+    vertices[nv.id] = nv;
+  }
+
+  const wallIdMap = new Map<string, string>();
+  const walls: Room['walls'] = {};
+  for (const w of Object.values(payload.walls ?? {})) {
+    const a = vertexIdMap.get(w.a);
+    const b = vertexIdMap.get(w.b);
+    if (!a || !b) continue;
+    const nw: WallSegment = { ...makeWall(a, b, w.thickness), curved: w.curved, curveOffset: w.curveOffset };
+    wallIdMap.set(w.id, nw.id);
+    walls[nw.id] = nw;
+  }
+
+  const openings: Room['openings'] = {};
+  for (const o of Object.values(payload.openings ?? {})) {
+    const wallId = wallIdMap.get(o.wallId);
+    if (!wallId) continue;
+    const id = `open-${nanoid(8)}`;
+    openings[id] = { ...o, id, wallId };
+  }
+
+  return {
+    id: roomId,
+    name: payload.name?.trim() || 'Imported Room',
+    order: 0,
+    objects,
+    items: {},
+    layers: layers.length ? layers : defaultLayers(nanoid(6)).layers,
+    activeLayerId: layerIdMap.get(payload.activeLayerId) ?? fallbackLayerId,
+    vertices,
+    walls,
+    openings,
+    floors: computeFloors(vertices, walls),
+    floorColor: payload.floorColor ?? '#1c2233',
+    floorOpacity: payload.floorOpacity ?? 1,
+    camera: payload.camera ?? { x: 160, y: 140, scale: 1 },
+  };
+}
+
 export const useStore = create<AppState>()(
   persist(
     (set, get) => ({
@@ -577,6 +646,22 @@ export const useStore = create<AppState>()(
           activeRoomId: clone.id,
         }));
         return clone.id;
+      },
+      importRoom: (payload) => {
+        const room = roomFromImportedDesign(payload);
+        set((s) => ({
+          ...withHistory(s, 'import-room'),
+          ...pushLogEntry(s, { scope: 'room', action: 'created', entityId: room.id, subject: room.name, roomId: room.id, roomName: room.name, detail: 'Imported from file' }),
+          rooms: { ...s.rooms, [room.id]: { ...room, order: s.roomOrder.length } },
+          roomOrder: [...s.roomOrder, room.id],
+          activeRoomId: room.id,
+          selection: [],
+          openLocation: null,
+          pickerObjectId: null,
+          wallSelection: null,
+          wallDraft: null,
+        }));
+        return room.id;
       },
       reorderRoom: (id, dir) =>
         set((s) => {

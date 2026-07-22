@@ -239,11 +239,23 @@ export default function RoomCanvas() {
     const boxH = Math.max(1, bounds.maxY - bounds.minY + marginIn * 2);
     const centerX = (bounds.minX + bounds.maxX) / 2;
     const centerY = (bounds.minY + bounds.maxY) / 2;
-    const targetScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, Math.min(w / (boxW * PX_PER_IN), h / (boxH * PX_PER_IN))));
+
+    // The toolbar and status bar float on top of the canvas rather than
+    // taking up their own layout space, so framing against the raw window
+    // height leaves the room tucked behind them. Measure their real height
+    // and treat only the strip between them as the usable viewport.
+    const topBarRect = document.querySelector('.top-bar')?.getBoundingClientRect();
+    const statusBarRect = document.querySelector('.status-bar')?.getBoundingClientRect();
+    const topInset = topBarRect ? topBarRect.bottom + 16 : 0;
+    const bottomInset = statusBarRect ? h - statusBarRect.top + 16 : 0;
+    const usableH = Math.max(100, h - topInset - bottomInset);
+    const usableCenterY = topInset + usableH / 2;
+
+    const targetScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, Math.min(w / (boxW * PX_PER_IN), usableH / (boxH * PX_PER_IN))));
     const targetCam: Camera = {
       scale: targetScale,
       x: w / 2 - centerX * PX_PER_IN * targetScale,
-      y: h / 2 - centerY * PX_PER_IN * targetScale,
+      y: usableCenterY - centerY * PX_PER_IN * targetScale,
     };
 
     const start = { ...cam };

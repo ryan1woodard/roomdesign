@@ -295,7 +295,7 @@
   position: absolute;
   top: 84px;
   left: 16px;
-  width: 232px;
+  width: 248px;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -1138,9 +1138,12 @@
   width: 100%;
 }
 .room-row-actions-slot {
-  gap: 4px;
+  gap: 3px;
   opacity: 0;
   pointer-events: none;
+}
+.room-row-actions-slot .btn.icon {
+  padding: 6px;
 }
 .room-row.interactive:hover .room-row-info {
   opacity: 0;
