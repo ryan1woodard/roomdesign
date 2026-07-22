@@ -96,7 +96,7 @@ export default function Toolbar() {
           <div className="divider-v" />
           <button
             className={`btn icon ${objectTool === 'freeMove' ? 'active' : ''}`}
-            title="Free Move — drag the object anywhere, like before"
+            title="Free Move — drag the object anywhere"
             onClick={() => setObjectTool(objectTool === 'freeMove' ? 'select' : 'freeMove')}
           >
             <Hand size={17} />
