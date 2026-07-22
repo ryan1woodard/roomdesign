@@ -98,7 +98,7 @@ export default function Toolbar() {
             </Tooltip>
           ))}
           <div className="divider-v" />
-          <Tooltip label="Free Move">
+          <Tooltip label="Grab">
             <button
               className={`btn icon ${objectTool === 'freeMove' ? 'active' : ''}`}
               onClick={() => setObjectTool(objectTool === 'freeMove' ? 'select' : 'freeMove')}
