@@ -70,6 +70,8 @@ export default function App() {
 
   const wallTool = useStore((s) => s.wallTool);
   const setWallTool = useStore((s) => s.setWallTool);
+  const objectTool = useStore((s) => s.objectTool);
+  const setObjectTool = useStore((s) => s.setObjectTool);
   const wallDraft = useStore((s) => s.wallDraft);
   const cancelWallDraft = useStore((s) => s.cancelWallDraft);
   const wallSelection = useStore((s) => s.wallSelection);
@@ -95,6 +97,7 @@ export default function App() {
         else if (contextMenu) closeContextMenu();
         else if (wallSelection) selectWallEntity(null);
         else if (isWallMode && wallTool !== 'select') setWallTool('select');
+        else if (!isWallMode && objectTool !== 'select') setObjectTool('select');
         else clearSelection();
         return;
       }
@@ -161,6 +164,8 @@ export default function App() {
     isWallMode,
     wallTool,
     setWallTool,
+    objectTool,
+    setObjectTool,
     room,
     mode,
   ]);

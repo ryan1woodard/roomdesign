@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import Konva from 'konva';
 import { Group, Line, Circle, Rect, Text } from 'react-konva';
 import type { Room, WallSegment, WallOpening, WallVertex } from '../types';
 import { useStore, type WallTool, type WallEntitySelection } from '../store/store';
@@ -220,11 +221,22 @@ export default function WallLayer({ room, px, units, wallTool, wallSelection, wa
               rotation={angleDeg}
               listening
               draggable={interactive && wallTool === 'select'}
-              dragBoundFunc={(pos) => {
-                const worldPoint = { x: pos.x / px, y: pos.y / px };
+              dragBoundFunc={function (this: Konva.Node, pos) {
+                // `pos` is in absolute (stage) pixel coordinates, which differ
+                // from the local world*px space used everywhere else in this
+                // file whenever the camera is panned/zoomed away from the
+                // identity transform (the common case, since Fit to View runs
+                // automatically on load). Converting through the stage's
+                // absolute transform — rather than dividing by `px` directly —
+                // keeps the opening constrained to the wall instead of
+                // snapping to a wildly wrong, possibly off-screen position.
+                const stage = this.getStage()!;
+                const inverse = stage.getAbsoluteTransform().copy().invert();
+                const local = inverse.point(pos);
+                const worldPoint = { x: local.x / px, y: local.y / px };
                 const t = projectPointOnWall(wall, room.vertices, worldPoint);
                 const p = wallPointAt(wall, rv, t);
-                return { x: p.x * px, y: p.y * px };
+                return stage.getAbsoluteTransform().point({ x: p.x * px, y: p.y * px });
               }}
               onDragMove={(e) => {
                 const worldPoint = { x: e.target.x() / px, y: e.target.y() / px };

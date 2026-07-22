@@ -74,7 +74,7 @@ export default function Toolbar() {
         <span className="brand-name">SRS Lab Designer</span>
       </div>
       <SaveIndicator />
-      <div className="divider-v" />
+      {mode !== 'inventory' && <div className="divider-v" />}
 
       {mode === 'inventory' ? null : isWallMode ? (
         WALL_TOOLS.map((t) => (
