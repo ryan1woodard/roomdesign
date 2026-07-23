@@ -97,7 +97,7 @@ export default function App() {
         else if (contextMenu) closeContextMenu();
         else if (wallSelection) selectWallEntity(null);
         else if (isWallMode && wallTool !== 'select') setWallTool('select');
-        else if (!isWallMode && objectTool !== 'select') setObjectTool('select');
+        else if (!isWallMode && objectTool !== 'freeMove') setObjectTool('freeMove');
         else clearSelection();
         return;
       }

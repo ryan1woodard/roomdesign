@@ -605,7 +605,7 @@ export const useStore = create<AppState>()(
       wallTool: 'select',
       wallDraft: null,
       wallSelection: null,
-      objectTool: 'select',
+      objectTool: 'freeMove',
       fitToViewToken: 0,
 
       past: [],
@@ -628,7 +628,7 @@ export const useStore = create<AppState>()(
           wallSelection: null,
           wallDraft: null,
           wallTool: 'select',
-          objectTool: 'select',
+          objectTool: 'freeMove',
           openLocation: mode === 'design' ? null : s.openLocation,
           pickerObjectId: mode === 'design' ? null : s.pickerObjectId,
           shelfEditObjectId: mode === 'inventory' ? null : s.shelfEditObjectId,
@@ -744,7 +744,7 @@ export const useStore = create<AppState>()(
             wallSelection: null,
             wallDraft: null,
             wallTool: 'select',
-            objectTool: 'select',
+            objectTool: 'freeMove',
             contextMenu: null,
           };
         }),
