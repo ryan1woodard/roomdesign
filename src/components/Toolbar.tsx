@@ -6,7 +6,6 @@ import {
   Boxes,
   Undo2,
   Redo2,
-  Tags,
   Maximize,
   MousePointer2,
   PencilLine,
@@ -45,7 +44,6 @@ export default function Toolbar() {
   const settings = useStore((s) => s.settings);
   const room = useActiveRoom();
   const addObject = useStore((s) => s.addObject);
-  const toggleShowAllLabels = useStore((s) => s.toggleShowAllLabels);
   const toggleShowCompartments = useStore((s) => s.toggleShowCompartments);
   const setUnit = useStore((s) => s.setUnit);
   const undo = useStore((s) => s.undo);
@@ -134,11 +132,6 @@ export default function Toolbar() {
 
       <div className="divider-v" />
 
-      <Tooltip label="Labels">
-        <button className={`btn icon ${settings.showAllLabels ? 'active' : ''}`} onClick={toggleShowAllLabels}>
-          <Tags size={17} />
-        </button>
-      </Tooltip>
       <Tooltip label="Open Compartments">
         <button className={`btn icon ${settings.showCompartments ? 'active' : ''}`} onClick={toggleShowCompartments}>
           <LayoutGrid size={17} />

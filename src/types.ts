@@ -133,8 +133,6 @@ export type AppMode = 'design' | 'inventory';
 
 export interface Settings {
   units: Unit;
-  /** Global override — show every object's label regardless of hover state. */
-  showAllLabels: boolean;
   /** Preview containers' internal compartment layout (shelf/drawer/grid
    * divisions) directly on the canvas, without opening them. */
   showCompartments: boolean;

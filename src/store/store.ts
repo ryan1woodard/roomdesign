@@ -187,7 +187,6 @@ interface AppState extends Doc {
 
   // Settings actions
   setUnit: (u: Settings['units']) => void;
-  toggleShowAllLabels: () => void;
   toggleShowCompartments: () => void;
   setWallThicknessDefault: (v: number) => void;
   setMode: (mode: AppMode) => void;
@@ -584,7 +583,6 @@ export const useStore = create<AppState>()(
       ...buildDemo(),
       settings: {
         units: 'in',
-        showAllLabels: false,
         showCompartments: false,
         wallThickness: 6,
         mode: 'design',
@@ -626,7 +624,6 @@ export const useStore = create<AppState>()(
       _rev: 0,
 
       setUnit: (units) => set((s) => ({ settings: { ...s.settings, units } })),
-      toggleShowAllLabels: () => set((s) => ({ settings: { ...s.settings, showAllLabels: !s.settings.showAllLabels } })),
       toggleShowCompartments: () => set((s) => ({ settings: { ...s.settings, showCompartments: !s.settings.showCompartments } })),
       setWallThicknessDefault: (v) => set((s) => ({ settings: { ...s.settings, wallThickness: Math.max(1, v) } })),
       setMode: (mode) =>

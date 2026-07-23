@@ -6,11 +6,11 @@ import type { ObjectTool } from '../store/store';
 import { gridCells, cellName, cellKind, storageCharacter } from '../lib/shelf';
 import { objectBBox, snapTranslate, type SnapLines, type SnapGuides, NO_SNAP_GUIDES } from '../lib/snapping';
 
-const LABEL_GAP = 6; // px, screen-space gap between object's top edge and its label
 const LABEL_W = 140;
 const LABEL_H = 18;
-/** Below this stage zoom, labels are always hidden to avoid clutter. */
-export const LABEL_MIN_ZOOM = 0.35;
+const ICON_GAP = 4; // px, screen-space gap between label text and the storage-type icon below it
+const ICON_W = 24;
+const ICON_H = 17;
 
 interface Props {
   obj: RoomObject;
@@ -24,7 +24,6 @@ interface Props {
   getSnapLines: (excludeId: string) => SnapLines;
   onSnapGuideChange: (guides: SnapGuides) => void;
   zoomScale: number; // current stage zoom (cam.scale)
-  showAllLabels: boolean;
   /** "Open Compartments" toolbar toggle — when off, a container renders as
    * a plain solid object, same as any non-container shape. */
   showCompartments: boolean;
@@ -42,25 +41,6 @@ interface Props {
   onContextMenu: (id: string, x: number, y: number) => void;
 }
 
-/** Topmost screen-space Y of a rotated object's bounding box, relative to its center. */
-function rotatedTopOffset(width: number, height: number, rotationDeg: number): number {
-  const rad = (rotationDeg * Math.PI) / 180;
-  const hw = width / 2;
-  const hh = height / 2;
-  const corners = [
-    [-hw, -hh],
-    [hw, -hh],
-    [hw, hh],
-    [-hw, hh],
-  ];
-  let minY = Infinity;
-  for (const [x, y] of corners) {
-    const ry = x * Math.sin(rad) + y * Math.cos(rad);
-    if (ry < minY) minY = ry;
-  }
-  return minY;
-}
-
 export default function ObjectNode({
   obj,
   px,
@@ -72,7 +52,6 @@ export default function ObjectNode({
   getSnapLines,
   onSnapGuideChange,
   zoomScale,
-  showAllLabels,
   showCompartments,
   mode,
   objectTool,
@@ -86,25 +65,7 @@ export default function ObjectNode({
 }: Props) {
   const groupRef = useRef<Konva.Group>(null);
   const glowRef = useRef<Konva.Rect>(null);
-  const labelRef = useRef<Konva.Group>(null);
-  const labelTweenRef = useRef<Konva.Tween | null>(null);
-  const hoverRef = useRef(false);
   const dragSnapLinesRef = useRef<SnapLines>({ vertical: [], horizontal: [] });
-
-  // Destroying the same Konva.Tween instance twice throws, and the label's
-  // fade is driven from three independent places (the effect below, plus the
-  // imperative hover handlers), so every "replace the tween" site must null
-  // the ref out immediately to make repeat destroys a safe no-op.
-  const killLabelTween = () => {
-    labelTweenRef.current?.destroy();
-    labelTweenRef.current = null;
-  };
-  const fadeLabelTo = (opacity: number, duration: number) => {
-    killLabelTween();
-    if (!labelRef.current) return;
-    labelTweenRef.current = new Konva.Tween({ node: labelRef.current, duration, opacity });
-    labelTweenRef.current.play();
-  };
 
   const w = obj.width * px;
   const h = obj.height * px;
@@ -133,22 +94,10 @@ export default function ObjectNode({
   const isContainer = obj.storage.type === 'grid';
   const cells = isContainer ? gridCells(obj.storage) : [];
   const character = storageCharacter(obj);
-  const badgeVisible = isContainer && (showCompartments || showDetail) && (character === 'shelf' || character === 'drawer') && w > 40 && h > 24;
 
   const centerX = (obj.x + obj.width / 2) * px;
   const centerY = (obj.y + obj.height / 2) * px;
 
-  const zoomVisible = zoomScale >= LABEL_MIN_ZOOM;
-  const labelWanted = zoomVisible && (showAllLabels || selected || hoverRef.current);
-
-  // Smoothly fade the label group in/out via a Konva tween (avoids per-frame React re-renders).
-  useEffect(() => {
-    fadeLabelTo(labelWanted ? 1 : 0, 0.15);
-    return killLabelTween;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [labelWanted]);
-
-  const topOffset = rotatedTopOffset(w, h, obj.rotation);
   const counterScale = 1 / Math.max(0.001, zoomScale);
 
   const hasCustomBorder = !selected && (obj.borderWidth ?? 0) > 0;
@@ -159,11 +108,6 @@ export default function ObjectNode({
     fill: obj.fill === 'transparent' ? undefined : obj.fill,
     stroke,
     strokeWidth: strokeW,
-    shadowColor: 'black',
-    // Drawer units read slightly heavier/boxier than shelves or plain surfaces.
-    shadowBlur: selected ? 18 : character === 'drawer' ? 13 : 10,
-    shadowOpacity: character === 'drawer' ? 0.48 : 0.4,
-    shadowOffsetY: 4,
   };
 
   return (
@@ -177,15 +121,6 @@ export default function ObjectNode({
         rotation={obj.rotation}
         draggable={mode === 'design' && objectTool === 'freeMove'}
         opacity={dimmed ? 0.35 : 1}
-        onMouseEnter={() => {
-          hoverRef.current = true;
-          fadeLabelTo(zoomVisible ? 1 : 0, 0.15);
-        }}
-        onMouseLeave={() => {
-          hoverRef.current = false;
-          if (showAllLabels || selected) return;
-          fadeLabelTo(0, 0.2);
-        }}
         onMouseDown={(e) => {
           e.cancelBubble = true;
           onSelect(obj.id, e.evt.shiftKey);
@@ -339,22 +274,6 @@ export default function ObjectNode({
             );
           })}
 
-        {/* Storage-type corner badge: a tiny shelf or drawer glyph, so the
-            kind of container is recognizable even before opening it. */}
-        {badgeVisible && (
-          <Group x={w - 26} y={6} listening={false}>
-            <Rect width={20} height={15} cornerRadius={3} fill="rgba(10,13,20,0.85)" stroke="rgba(255,255,255,0.18)" strokeWidth={1} />
-            {character === 'shelf' ? (
-              <>
-                <Line points={[4, 5, 16, 5]} stroke="rgba(255,255,255,0.55)" strokeWidth={1} />
-                <Line points={[4, 10, 16, 10]} stroke="rgba(255,255,255,0.55)" strokeWidth={1} />
-              </>
-            ) : (
-              <Line points={[6, 10, 14, 10]} stroke="rgba(255,255,255,0.6)" strokeWidth={1.5} lineCap="round" />
-            )}
-          </Group>
-        )}
-
         {/* Inline text-object content */}
         {obj.kind === 'text' && (
           <Text
@@ -368,21 +287,16 @@ export default function ObjectNode({
         )}
       </Group>
 
-      {/* Floating name label: centered above the object, upright regardless of rotation,
-          counter-scaled so it stays a constant, readable screen size at any zoom. */}
+      {/* Floating name label: always visible, centered on the object regardless
+          of rotation, counter-scaled so it stays a constant, readable screen
+          size at any zoom. Overlapping labels on crowded objects are expected
+          and intentional — legibility of "which object is which" wins over
+          avoiding overlap. */}
       {obj.kind !== 'text' && (
-        <Group
-          ref={labelRef}
-          x={centerX}
-          y={centerY + topOffset}
-          scaleX={counterScale}
-          scaleY={counterScale}
-          opacity={0}
-          listening={false}
-        >
+        <Group x={centerX} y={centerY} scaleX={counterScale} scaleY={counterScale} listening={false}>
           <Text
             x={-LABEL_W / 2}
-            y={-LABEL_H - LABEL_GAP}
+            y={-LABEL_H / 2}
             width={LABEL_W}
             height={LABEL_H}
             align="center"
@@ -398,6 +312,50 @@ export default function ObjectNode({
             ellipsis
             wrap="none"
           />
+
+          {/* Inventory Mode: a small glyph identifying the storage character
+              (shelf/drawer/container) or, for a plain surface object, "table" —
+              replaces the old corner badge so it reads clearly at the label's
+              fixed on-screen size regardless of zoom. */}
+          {mode === 'inventory' && (
+            <Group x={-ICON_W / 2} y={LABEL_H / 2 + ICON_GAP}>
+              <Rect
+                width={ICON_W}
+                height={ICON_H}
+                cornerRadius={3}
+                fill="rgba(10,13,20,0.85)"
+                stroke="rgba(255,255,255,0.18)"
+                strokeWidth={1}
+              />
+              {character === 'shelf' && (
+                <>
+                  <Line points={[5, 5, 19, 5]} stroke="rgba(255,255,255,0.6)" strokeWidth={1.3} lineCap="round" />
+                  <Line points={[5, 8.5, 19, 8.5]} stroke="rgba(255,255,255,0.6)" strokeWidth={1.3} lineCap="round" />
+                  <Line points={[5, 12, 19, 12]} stroke="rgba(255,255,255,0.6)" strokeWidth={1.3} lineCap="round" />
+                </>
+              )}
+              {character === 'drawer' && (
+                <>
+                  <Rect x={5} y={4} width={14} height={9} cornerRadius={1.5} stroke="rgba(255,255,255,0.5)" strokeWidth={1} />
+                  <Line points={[9, 8.5, 15, 8.5]} stroke="rgba(255,255,255,0.7)" strokeWidth={1.5} lineCap="round" />
+                </>
+              )}
+              {character === 'grid' && (
+                <>
+                  <Rect x={5} y={3} width={14} height={11} cornerRadius={1.5} stroke="rgba(255,255,255,0.55)" strokeWidth={1} />
+                  <Line points={[12, 3, 12, 14]} stroke="rgba(255,255,255,0.4)" strokeWidth={1} />
+                  <Line points={[5, 8.5, 19, 8.5]} stroke="rgba(255,255,255,0.4)" strokeWidth={1} />
+                </>
+              )}
+              {character === 'surface' && (
+                <>
+                  <Line points={[5, 6, 19, 6]} stroke="rgba(255,255,255,0.6)" strokeWidth={1.5} lineCap="round" />
+                  <Line points={[7, 6, 7, 13]} stroke="rgba(255,255,255,0.6)" strokeWidth={1.3} lineCap="round" />
+                  <Line points={[17, 6, 17, 13]} stroke="rgba(255,255,255,0.6)" strokeWidth={1.3} lineCap="round" />
+                </>
+              )}
+            </Group>
+          )}
         </Group>
       )}
     </>

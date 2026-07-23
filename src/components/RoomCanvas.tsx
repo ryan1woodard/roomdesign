@@ -1,15 +1,52 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
-import { Stage, Layer, Line, Transformer } from 'react-konva';
+import { Stage, Layer, Line, Transformer, Group, Rect, Ellipse } from 'react-konva';
 import Konva from 'konva';
 import { useStore, useActiveRoom } from '../store/store';
 import { objectsMatchingSearch } from '../lib/selectors';
 import { computeVisibleBounds } from '../lib/bounds';
 import { computeWallCandidate } from '../lib/walls';
+import { storageCharacter } from '../lib/shelf';
 import { collectSnapLines, snapEdges, type BBox, type SnapGuides, NO_SNAP_GUIDES } from '../lib/snapping';
+import type { RoomObject } from '../types';
 import ObjectNode from './ObjectNode';
 import TransformTools from './TransformTools';
 import WallLayer from './WallLayer';
 import StatusBar from './StatusBar';
+
+/** A same-layer object never casts a shadow onto its neighbors — only onto
+ * whatever layer(s) render beneath it. Rendered as a separate pre-pass, one
+ * full opaque silhouette per object, entirely covered up (within its own
+ * layer) by that layer's real, shadowless fills drawn immediately after —
+ * see the two-pass grouping in the object Layer below. */
+function ObjectShadowCaster({ obj, px, selected }: { obj: RoomObject; px: number; selected: boolean }) {
+  if (obj.kind === 'text') return null;
+  const w = obj.width * px;
+  const h = obj.height * px;
+  const character = storageCharacter(obj);
+  const shadowProps = {
+    fill: 'black',
+    shadowColor: 'black',
+    shadowBlur: selected ? 18 : character === 'drawer' ? 13 : 10,
+    shadowOpacity: character === 'drawer' ? 0.48 : 0.4,
+    shadowOffsetY: 4,
+  };
+  return (
+    <Group
+      x={(obj.x + obj.width / 2) * px}
+      y={(obj.y + obj.height / 2) * px}
+      offsetX={w / 2}
+      offsetY={h / 2}
+      rotation={obj.rotation}
+      listening={false}
+    >
+      {obj.kind === 'circle' ? (
+        <Ellipse x={w / 2} y={h / 2} radiusX={w / 2} radiusY={h / 2} {...shadowProps} />
+      ) : (
+        <Rect width={w} height={h} cornerRadius={obj.cornerRadius * px} {...shadowProps} />
+      )}
+    </Group>
+  );
+}
 
 export const PX_PER_IN = 6; // world scale before stage zoom
 const MIN_SCALE = 0.08;
@@ -218,6 +255,21 @@ export default function RoomCanvas() {
       .sort((a, b) => (layerIndex.get(a.layerId) ?? 0) - (layerIndex.get(b.layerId) ?? 0));
   }, [objects, visibleLayerIds, layers]);
 
+  // Grouped by layer (bottom layer first, matching objectList's order) so each
+  // layer can be drawn as its own [shadows, then fills] pass — see ObjectShadowCaster.
+  const objectLayerGroups = useMemo(() => {
+    const groups: RoomObject[][] = [];
+    let currentLayerId: string | null = null;
+    for (const obj of objectList) {
+      if (obj.layerId !== currentLayerId) {
+        groups.push([]);
+        currentLayerId = obj.layerId;
+      }
+      groups[groups.length - 1].push(obj);
+    }
+    return groups;
+  }, [objectList]);
+
   // Fit-to-view: animate the camera to frame every visible object/wall.
   useEffect(() => {
     if (fitToViewToken === 0) return;
@@ -392,31 +444,37 @@ export default function RoomCanvas() {
         </Layer>
 
         <Layer>
-          {objectList.map((obj) => (
-            <ObjectNode
-              key={obj.id}
-              obj={obj}
-              px={PX_PER_IN}
-              selected={selection.includes(obj.id)}
-              searchHit={searchHits.has(obj.id)}
-              dimmed={search.trim().length > 0 && !searchHits.has(obj.id)}
-              counts={counts[obj.id] ?? {}}
-              showDetail={showDetail}
-              getSnapLines={getSnapLines}
-              onSnapGuideChange={setSnapGuide}
-              zoomScale={cam.scale}
-              showAllLabels={settings.showAllLabels}
-              showCompartments={settings.showCompartments}
-              mode={mode}
-              objectTool={objectTool}
-              registerNode={registerNode}
-              onSelect={handleObjSelect}
-              onOpenCell={(id, key) => mode === 'inventory' && open({ objectId: id, cellKey: key })}
-              onOpenPicker={(id) => mode === 'inventory' && openPicker(id)}
-              onDragMove={(id, x, y) => updateObject(id, { x, y })}
-              onDragEnd={(id, x, y) => updateObject(id, { x, y })}
-              onContextMenu={(id, x, y) => openContextMenu(id, x, y)}
-            />
+          {objectLayerGroups.map((group, i) => (
+            <Group key={i}>
+              {group.map((obj) => (
+                <ObjectShadowCaster key={obj.id} obj={obj} px={PX_PER_IN} selected={selection.includes(obj.id)} />
+              ))}
+              {group.map((obj) => (
+                <ObjectNode
+                  key={obj.id}
+                  obj={obj}
+                  px={PX_PER_IN}
+                  selected={selection.includes(obj.id)}
+                  searchHit={searchHits.has(obj.id)}
+                  dimmed={search.trim().length > 0 && !searchHits.has(obj.id)}
+                  counts={counts[obj.id] ?? {}}
+                  showDetail={showDetail}
+                  getSnapLines={getSnapLines}
+                  onSnapGuideChange={setSnapGuide}
+                  zoomScale={cam.scale}
+                  showCompartments={settings.showCompartments}
+                  mode={mode}
+                  objectTool={objectTool}
+                  registerNode={registerNode}
+                  onSelect={handleObjSelect}
+                  onOpenCell={(id, key) => mode === 'inventory' && open({ objectId: id, cellKey: key })}
+                  onOpenPicker={(id) => mode === 'inventory' && openPicker(id)}
+                  onDragMove={(id, x, y) => updateObject(id, { x, y })}
+                  onDragEnd={(id, x, y) => updateObject(id, { x, y })}
+                  onContextMenu={(id, x, y) => openContextMenu(id, x, y)}
+                />
+              ))}
+            </Group>
           ))}
           {mode === 'design' && !isWallMode && (objectTool === 'select' || objectTool === 'freeMove') && (
             <Transformer
