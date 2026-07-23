@@ -21,6 +21,7 @@ import type {
   LogEntry,
   LogScope,
   LogAction,
+  Checkout,
   SaveStatus,
   ProjectMeta,
   AppMode,
@@ -105,6 +106,7 @@ interface Doc {
   rooms: Record<string, Room>;
   roomOrder: string[];
   tags: Record<string, Tag>;
+  checkouts: Record<string, Checkout>;
 }
 
 /**
@@ -168,6 +170,7 @@ interface AppState extends Doc {
   logSearch: string;
   logScopeFilter: LogScope | 'all';
   inventoryDbOpen: boolean;
+  myInventoryOpen: boolean;
 
   wallTool: WallTool;
   wallDraft: { startVertexId: string; lastVertexId: string } | null;
@@ -205,6 +208,8 @@ interface AppState extends Doc {
   setLogSearch: (q: string) => void;
   openInventoryDb: () => void;
   closeInventoryDb: () => void;
+  openMyInventory: () => void;
+  closeMyInventory: () => void;
   setLogScopeFilter: (scope: LogScope | 'all') => void;
 
   // Room actions
@@ -259,6 +264,14 @@ interface AppState extends Doc {
   setItemOrder: (orderedIds: string[]) => void;
   markUsed: (id: string) => void;
 
+  /** Takes `qty` units of an item out of its physical location into the
+   * current user's personal inventory, creating or topping up their
+   * existing checkout record for that item. */
+  takeItem: (itemId: string, qty: number) => void;
+  /** Returns `qty` units from a checkout back into the room it came from,
+   * at `target` (which may differ from the item's original location). */
+  returnCheckout: (checkoutId: string, qty: number, target: LocationRef) => void;
+
   // Tags
   addTag: (name: string, color: string) => string;
   updateTag: (id: string, patch: Partial<Tag>) => void;
@@ -304,7 +317,7 @@ interface AppState extends Doc {
 }
 
 function snapshot(s: AppState): Doc {
-  return { rooms: s.rooms, roomOrder: s.roomOrder, tags: s.tags };
+  return { rooms: s.rooms, roomOrder: s.roomOrder, tags: s.tags, checkouts: s.checkouts };
 }
 
 /**
@@ -601,6 +614,8 @@ export const useStore = create<AppState>()(
       logSearch: '',
       logScopeFilter: 'all',
       inventoryDbOpen: false,
+      checkouts: {},
+      myInventoryOpen: false,
 
       wallTool: 'select',
       wallDraft: null,
@@ -653,6 +668,8 @@ export const useStore = create<AppState>()(
       setLogScopeFilter: (scope) => set({ logScopeFilter: scope }),
       openInventoryDb: () => set({ inventoryDbOpen: true }),
       closeInventoryDb: () => set({ inventoryDbOpen: false }),
+      openMyInventory: () => set({ myInventoryOpen: true }),
+      closeMyInventory: () => set({ myInventoryOpen: false }),
 
       addRoom: (name) => {
         const room = emptyRoom(name?.trim() || 'New Room');
@@ -1275,6 +1292,124 @@ export const useStore = create<AppState>()(
           }),
         ),
 
+      takeItem: (itemId, qty) =>
+        set((s) => {
+          const room = s.rooms[s.activeRoomId];
+          const item = room?.items[itemId];
+          const user = s.currentUser;
+          if (!room || !item || !user) return {};
+          const takeQty = Math.max(0, Math.min(Math.round(qty), item.quantity));
+          if (takeQty <= 0) return {};
+
+          const existing = Object.values(s.checkouts).find((c) => c.itemId === itemId && c.userId === user.id);
+          const checkouts = { ...s.checkouts };
+          if (existing) {
+            checkouts[existing.id] = { ...existing, quantity: existing.quantity + takeQty };
+          } else {
+            const id = `checkout-${nanoid(8)}`;
+            checkouts[id] = {
+              id,
+              itemId,
+              itemName: item.name,
+              roomId: room.id,
+              roomName: room.name,
+              objectId: item.objectId,
+              cellKey: item.cellKey,
+              userId: user.id,
+              userName: user.name,
+              userEmail: user.email,
+              quantity: takeQty,
+              takenAt: Date.now(),
+            };
+          }
+
+          return {
+            ...withHistory(s, 'take-item:' + itemId),
+            ...pushLogEntry(s, {
+              scope: 'inventory',
+              action: 'checked_out',
+              entityId: itemId,
+              subject: item.name,
+              roomId: room.id,
+              roomName: room.name,
+              detail: `${takeQty} taken by ${user.name}`,
+            }),
+            rooms: {
+              ...s.rooms,
+              [room.id]: {
+                ...room,
+                items: { ...room.items, [itemId]: { ...item, quantity: item.quantity - takeQty, updatedAt: Date.now() } },
+              },
+            },
+            checkouts,
+          };
+        }),
+      returnCheckout: (checkoutId, qty, target) =>
+        set((s) => {
+          const checkout = s.checkouts[checkoutId];
+          if (!checkout) return {};
+          const room = s.rooms[checkout.roomId];
+          const toObj = room?.objects[target.objectId];
+          if (!room || !toObj) return {};
+          const returnQty = Math.max(0, Math.min(Math.round(qty), checkout.quantity));
+          if (returnQty <= 0) return {};
+
+          const existingItem = room.items[checkout.itemId];
+          const items = { ...room.items };
+          if (existingItem && existingItem.objectId === target.objectId && existingItem.cellKey === target.cellKey) {
+            items[checkout.itemId] = { ...existingItem, quantity: existingItem.quantity + returnQty, updatedAt: Date.now() };
+          } else {
+            const now = Date.now();
+            const siblings = Object.values(room.items).filter(
+              (i) => i.objectId === target.objectId && i.cellKey === target.cellKey,
+            );
+            const newId = `item-${nanoid(8)}`;
+            items[newId] = existingItem
+              ? {
+                  ...existingItem,
+                  id: newId,
+                  quantity: returnQty,
+                  objectId: target.objectId,
+                  cellKey: target.cellKey,
+                  order: siblings.length,
+                  createdAt: now,
+                  updatedAt: now,
+                }
+              : {
+                  id: newId,
+                  name: checkout.itemName,
+                  quantity: returnQty,
+                  tagIds: [],
+                  createdAt: now,
+                  updatedAt: now,
+                  objectId: target.objectId,
+                  cellKey: target.cellKey,
+                  order: siblings.length,
+                };
+          }
+
+          const remaining = checkout.quantity - returnQty;
+          const checkouts = { ...s.checkouts };
+          if (remaining <= 0) delete checkouts[checkoutId];
+          else checkouts[checkoutId] = { ...checkout, quantity: remaining };
+
+          return {
+            ...withHistory(s, 'return-checkout:' + checkoutId),
+            ...pushLogEntry(s, {
+              scope: 'inventory',
+              action: 'returned',
+              entityId: checkout.itemId,
+              subject: checkout.itemName,
+              roomId: room.id,
+              roomName: room.name,
+              newValue: `${toObj.name} · ${cellName(toObj, target.cellKey)}`,
+              detail: `${returnQty} returned by ${checkout.userName}`,
+            }),
+            rooms: { ...s.rooms, [room.id]: { ...room, items } },
+            checkouts,
+          };
+        }),
+
       addTag: (name, color) => {
         const id = `tag-${nanoid(6)}`;
         set((s) => ({ ...withHistory(s, 'add-tag'), tags: { ...s.tags, [id]: { id, name, color } } }));
@@ -1576,6 +1711,7 @@ export const useStore = create<AppState>()(
         roomOrder: s.roomOrder,
         activeRoomId: s.activeRoomId,
         tags: s.tags,
+        checkouts: s.checkouts,
         settings: s.settings,
         currentUser: s.currentUser,
         knownUsers: s.knownUsers,

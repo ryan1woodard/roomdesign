@@ -230,7 +230,9 @@ export type LogAction =
   | 'moved'
   | 'renamed'
   | 'notes_edited'
-  | 'edited';
+  | 'edited'
+  | 'checked_out'
+  | 'returned';
 
 /** A single attributed change, feeding the Inventory Log (and, later, any
  * broader activity view). Kept flat and self-describing so an entry still
@@ -252,6 +254,28 @@ export interface LogEntry {
   previousValue?: string;
   newValue?: string;
   detail?: string;
+}
+
+/**
+ * A quantity of an item taken out of its physical location into a user's
+ * personal ("on me") inventory, until they return it. Kept flat and
+ * self-describing like LogEntry, so a checkout still reads sensibly even
+ * if the item or room it came from is later renamed or removed.
+ */
+export interface Checkout {
+  id: string;
+  itemId: string;
+  itemName: string;
+  roomId: string;
+  roomName: string;
+  /** The item's location at the moment it was taken — the default return target. */
+  objectId: string;
+  cellKey: string;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  quantity: number;
+  takenAt: number;
 }
 
 export type SaveStatus = 'saved' | 'saving' | 'unsaved' | 'error';

@@ -1,4 +1,4 @@
-import type { Item, Tag, SortMode } from '../types';
+import type { Item, Tag, SortMode, Checkout } from '../types';
 
 export function itemsInLocation(
   items: Record<string, Item>,
@@ -33,6 +33,16 @@ export function objectsMatchingSearch(
     if (itemMatches(it, query, tags)) set.add(it.objectId);
   }
   return set;
+}
+
+/** Every checkout (across all rooms) for a given item, regardless of who holds it. */
+export function checkoutsForItem(checkouts: Record<string, Checkout>, itemId: string): Checkout[] {
+  return Object.values(checkouts).filter((c) => c.itemId === itemId);
+}
+
+/** Every checkout a given user currently holds, across all rooms — their personal inventory. */
+export function checkoutsForUser(checkouts: Record<string, Checkout>, userId: string): Checkout[] {
+  return Object.values(checkouts).filter((c) => c.userId === userId);
 }
 
 export function sortItems(items: Item[], mode: SortMode, tags: Record<string, Tag>): Item[] {

@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Database, X, Search, Plus, Trash2, Upload, Download } from 'lucide-react';
 import { useStore, useActiveRoom, useToastStore } from '../store/store';
 import { locationKeys, cellName } from '../lib/shelf';
-import { itemMatches } from '../lib/selectors';
+import { itemMatches, checkoutsForItem } from '../lib/selectors';
 import { downloadInventoryCsv, parseInventoryCsv, looksLikeInventoryCsv } from '../lib/inventoryCsv';
 import NumberField from './NumberField';
 import type { Item } from '../types';
@@ -18,6 +18,7 @@ export default function InventoryDatabase() {
   const close = useStore((s) => s.closeInventoryDb);
   const room = useActiveRoom();
   const tags = useStore((s) => s.tags);
+  const checkouts = useStore((s) => s.checkouts);
   const addItem = useStore((s) => s.addItem);
   const updateItem = useStore((s) => s.updateItem);
   const removeItem = useStore((s) => s.removeItem);
@@ -275,6 +276,11 @@ export default function InventoryDatabase() {
                               </select>
                             )}
                           </div>
+                          {checkoutsForItem(checkouts, it.id).map((c) => (
+                            <p key={c.id} className="db-checkout-note">
+                              {c.quantity} in {c.userName}'s inventory
+                            </p>
+                          ))}
                         </td>
                         <td>
                           <input

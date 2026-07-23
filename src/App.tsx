@@ -14,6 +14,7 @@ import ObjectContextMenu from './components/ObjectContextMenu';
 import LoadingScreen from './components/LoadingScreen';
 import LogViewer from './components/LogViewer';
 import InventoryDatabase from './components/InventoryDatabase';
+import PersonalInventory from './components/PersonalInventory';
 import LoginScreen from './components/LoginScreen';
 import UserMenu from './components/UserMenu';
 import ToastStack from './components/Toast';
@@ -197,6 +198,7 @@ export default function App() {
       <ObjectContextMenu />
       <LogViewer />
       <InventoryDatabase />
+      <PersonalInventory />
       <ToastStack />
     </div>
   );

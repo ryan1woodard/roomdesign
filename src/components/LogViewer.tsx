@@ -21,6 +21,8 @@ const ACTION_LABEL: Record<LogEntry['action'], string> = {
   renamed: 'renamed',
   notes_edited: 'edited notes on',
   edited: 'edited',
+  checked_out: 'took',
+  returned: 'returned',
 };
 
 function formatWhen(ts: number): string {

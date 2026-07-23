@@ -16,6 +16,7 @@ import {
   RectangleHorizontal,
   History,
   Database,
+  Backpack,
   Move,
   RotateCw,
   Hand,
@@ -62,6 +63,7 @@ export default function Toolbar() {
   const setObjectTool = useStore((s) => s.setObjectTool);
   const openLogViewer = useStore((s) => s.openLogViewer);
   const openInventoryDb = useStore((s) => s.openInventoryDb);
+  const openMyInventory = useStore((s) => s.openMyInventory);
 
   const mode = settings.mode;
   const activeLayer = room.layers.find((l) => l.id === room.activeLayerId);
@@ -167,6 +169,7 @@ export default function Toolbar() {
       </Tooltip>
       {mode === 'inventory' && (
         <>
+          <div className="divider-v" />
           <Tooltip label="Inventory Log">
             <button className="btn icon" onClick={openLogViewer}>
               <History size={17} />
@@ -175,6 +178,11 @@ export default function Toolbar() {
           <Tooltip label="Inventory Database">
             <button className="btn icon" onClick={openInventoryDb}>
               <Database size={17} />
+            </button>
+          </Tooltip>
+          <Tooltip label="My Inventory">
+            <button className="btn icon" onClick={openMyInventory}>
+              <Backpack size={17} />
             </button>
           </Tooltip>
         </>

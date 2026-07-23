@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
-import { Search, X, MapPin } from 'lucide-react';
+import { Search, X, MapPin, PackageCheck } from 'lucide-react';
 import { useStore } from '../store/store';
-import { itemMatches } from '../lib/selectors';
+import { itemMatches, checkoutsForItem } from '../lib/selectors';
 import { cellName } from '../lib/shelf';
 import type { Item, Room } from '../types';
 
@@ -10,6 +10,9 @@ interface CrossRoomHit {
   room: Room;
   objectName: string;
   cellLabel: string;
+  /** e.g. "2 with Alice, 1 with Bob" — so a searcher knows who to ask
+   * even when the physical stock is checked out. */
+  checkoutNote: string;
 }
 
 export default function SearchBar() {
@@ -18,6 +21,7 @@ export default function SearchBar() {
   const rooms = useStore((s) => s.rooms);
   const roomOrder = useStore((s) => s.roomOrder);
   const tags = useStore((s) => s.tags);
+  const checkouts = useStore((s) => s.checkouts);
   const open = useStore((s) => s.open);
   const setActiveRoom = useStore((s) => s.setActiveRoom);
   const activeRoomId = useStore((s) => s.activeRoomId);
@@ -30,16 +34,18 @@ export default function SearchBar() {
       for (const it of Object.values(room.items)) {
         if (!itemMatches(it, search, tags)) continue;
         const obj = room.objects[it.objectId];
+        const takenBy = checkoutsForItem(checkouts, it.id);
         hits.push({
           item: it,
           room,
           objectName: obj?.name ?? 'Unknown',
           cellLabel: obj ? cellName(obj, it.cellKey) : '',
+          checkoutNote: takenBy.map((c) => `${c.quantity} with ${c.userName}`).join(', '),
         });
       }
     }
     return hits.slice(0, 8);
-  }, [rooms, roomOrder, search, tags]);
+  }, [rooms, roomOrder, search, tags, checkouts]);
 
   const goTo = (hit: CrossRoomHit) => {
     if (hit.room.id !== activeRoomId) setActiveRoom(hit.room.id);
@@ -75,6 +81,11 @@ export default function SearchBar() {
                 <div className="sr-where">
                   <MapPin size={11} /> {hit.room.name} · {hit.objectName} · {hit.cellLabel}
                 </div>
+                {hit.checkoutNote && (
+                  <div className="sr-checkout">
+                    <PackageCheck size={11} /> {hit.checkoutNote}
+                  </div>
+                )}
               </div>
               <div className="sr-qty">×{hit.item.quantity}</div>
             </button>

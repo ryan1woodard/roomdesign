@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { X, ImagePlus, Trash2, Plus, Minus, ChevronDown } from 'lucide-react';
+import { X, ImagePlus, Trash2, Plus, Minus, ChevronDown, PackageMinus } from 'lucide-react';
 import { useStore, useActiveRoom } from '../store/store';
 import { fromInches, toInches, UNIT_LABEL } from '../lib/units';
 import { locationKeys, cellName } from '../lib/shelf';
+import { checkoutsForItem } from '../lib/selectors';
 import NumberField from './NumberField';
 
 const TAG_COLORS = ['#4f8cff', '#39c07a', '#ff9f45', '#a678f0', '#8b95a7', '#ff5d6c', '#2dd4bf', '#f0c674'];
@@ -21,15 +22,20 @@ export default function ItemInspector() {
   const moveQtyAction = useStore((s) => s.moveItemQty);
   const addTag = useStore((s) => s.addTag);
   const inspectItem = useStore((s) => s.inspectItem);
+  const checkouts = useStore((s) => s.checkouts);
+  const takeItem = useStore((s) => s.takeItem);
+  const currentUser = useStore((s) => s.currentUser);
   const fileRef = useRef<HTMLInputElement>(null);
   const [showOptional, setShowOptional] = useState(false);
   const [newTag, setNewTag] = useState('');
   const [moveTarget, setMoveTarget] = useState('');
   const [moveQty, setMoveQty] = useState(1);
+  const [takeQty, setTakeQty] = useState(1);
 
   useEffect(() => {
     setMoveTarget('');
     setMoveQty(id ? items[id]?.quantity ?? 1 : 1);
+    setTakeQty(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
@@ -146,6 +152,45 @@ export default function ItemInspector() {
         <p className="hint ii-current-location">
           {room.name} · {objects[item.objectId] ? `${objects[item.objectId].name} · ${cellName(objects[item.objectId], item.cellKey)}` : 'Unknown'}
         </p>
+
+        {checkoutsForItem(checkouts, item.id).length > 0 && (
+          <div className="checkout-list">
+            {checkoutsForItem(checkouts, item.id).map((c) => (
+              <p key={c.id} className="hint checkout-note">
+                {c.quantity} in {c.userId === currentUser?.id ? 'your' : `${c.userName}'s`} inventory
+              </p>
+            ))}
+          </div>
+        )}
+
+        <div className="take-row">
+          {item.quantity > 0 ? (
+            <>
+              {item.quantity > 1 && (
+                <NumberField
+                  className="take-qty-input"
+                  min={1}
+                  max={item.quantity}
+                  value={takeQty}
+                  step={1}
+                  title={`How many of ${item.quantity} to take`}
+                  onCommit={(v) => setTakeQty(Math.max(1, Math.min(item.quantity, Math.round(v ?? takeQty))))}
+                />
+              )}
+              <button
+                className="btn"
+                onClick={() => {
+                  takeItem(item.id, item.quantity > 1 ? takeQty : item.quantity);
+                  setTakeQty(1);
+                }}
+              >
+                <PackageMinus size={14} /> Take item{item.quantity > 1 && takeQty > 1 ? 's' : ''}
+              </button>
+            </>
+          ) : (
+            <p className="hint">All of this item is currently checked out.</p>
+          )}
+        </div>
 
         <div className="move-row">
           <select className="field" value={moveTarget} onChange={(e) => setMoveTarget(e.target.value)}>
