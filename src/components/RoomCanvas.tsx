@@ -11,6 +11,7 @@ import type { RoomObject } from '../types';
 import ObjectNode from './ObjectNode';
 import TransformTools from './TransformTools';
 import WallLayer from './WallLayer';
+import FloorLayer from './FloorLayer';
 import StatusBar from './StatusBar';
 
 /** A same-layer object never casts a shadow onto its neighbors — only onto
@@ -430,17 +431,7 @@ export default function RoomCanvas() {
         style={{ background: 'transparent' }}
       >
         <Layer>
-          <WallLayer
-            room={room}
-            px={PX_PER_IN}
-            units={settings.units}
-            wallTool={isWallMode ? wallTool : 'select'}
-            wallSelection={wallSelection}
-            wallCursorIn={wallCursor}
-            snapTargetVertexId={wallSnapVertexId}
-            visible={wallLayer ? visibleLayerIds.has(wallLayer.id) : false}
-            interactive={isWallMode}
-          />
+          <FloorLayer room={room} px={PX_PER_IN} visible={wallLayer ? visibleLayerIds.has(wallLayer.id) : false} />
         </Layer>
 
         <Layer>
@@ -462,7 +453,7 @@ export default function RoomCanvas() {
                   getSnapLines={getSnapLines}
                   onSnapGuideChange={setSnapGuide}
                   zoomScale={cam.scale}
-                  showCompartments={settings.showCompartments}
+                  showAllLabels={settings.showAllLabels ?? true}
                   mode={mode}
                   objectTool={objectTool}
                   registerNode={registerNode}
@@ -566,6 +557,24 @@ export default function RoomCanvas() {
               listening={false}
             />
           )}
+        </Layer>
+
+        {/* Walls render last (topmost) so nothing an object does can ever
+            shadow onto a wall — the wall's own fill always repaints over any
+            bleed — while the wall's own shadow (added in WallLayer) falls
+            correctly over every object/floor beneath it. */}
+        <Layer>
+          <WallLayer
+            room={room}
+            px={PX_PER_IN}
+            units={settings.units}
+            wallTool={isWallMode ? wallTool : 'select'}
+            wallSelection={wallSelection}
+            wallCursorIn={wallCursor}
+            snapTargetVertexId={wallSnapVertexId}
+            visible={wallLayer ? visibleLayerIds.has(wallLayer.id) : false}
+            interactive={isWallMode}
+          />
         </Layer>
       </Stage>
 

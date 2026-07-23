@@ -133,9 +133,10 @@ export type AppMode = 'design' | 'inventory';
 
 export interface Settings {
   units: Unit;
-  /** Preview containers' internal compartment layout (shelf/drawer/grid
-   * divisions) directly on the canvas, without opening them. */
-  showCompartments: boolean;
+  /** Toggle every object's floating name label on/off. Optional so older
+   * persisted state (from before this setting existed) still loads cleanly —
+   * treat a missing value as "on". */
+  showAllLabels?: boolean;
   /** Default thickness (inches) applied to newly-drawn walls. */
   wallThickness: number;
   mode: AppMode;

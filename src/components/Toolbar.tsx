@@ -17,7 +17,7 @@ import {
   Move,
   RotateCw,
   Hand,
-  LayoutGrid,
+  Tags,
 } from 'lucide-react';
 import { useStore, useActiveRoom } from '../store/store';
 import { ALL_UNITS, UNIT_LABEL } from '../lib/units';
@@ -44,7 +44,7 @@ export default function Toolbar() {
   const settings = useStore((s) => s.settings);
   const room = useActiveRoom();
   const addObject = useStore((s) => s.addObject);
-  const toggleShowCompartments = useStore((s) => s.toggleShowCompartments);
+  const toggleShowAllLabels = useStore((s) => s.toggleShowAllLabels);
   const setUnit = useStore((s) => s.setUnit);
   const undo = useStore((s) => s.undo);
   const redo = useStore((s) => s.redo);
@@ -132,9 +132,9 @@ export default function Toolbar() {
 
       <div className="divider-v" />
 
-      <Tooltip label="Open Compartments">
-        <button className={`btn icon ${settings.showCompartments ? 'active' : ''}`} onClick={toggleShowCompartments}>
-          <LayoutGrid size={17} />
+      <Tooltip label="Labels">
+        <button className={`btn icon ${settings.showAllLabels ?? true ? 'active' : ''}`} onClick={toggleShowAllLabels}>
+          <Tags size={17} />
         </button>
       </Tooltip>
       <Tooltip label="Fit to View">

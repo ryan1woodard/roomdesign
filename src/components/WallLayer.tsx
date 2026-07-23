@@ -112,24 +112,6 @@ export default function WallLayer({ room, px, units, wallTool, wallSelection, wa
 
   return (
     <Group>
-      {/* Floors */}
-      {room.floors.map((f) => {
-        const pts = f.vertexIds.flatMap((vid) => {
-          const v = room.vertices[vid];
-          return v ? [v.x * px, v.y * px] : [];
-        });
-        return (
-          <Line
-            key={f.id}
-            points={pts}
-            closed
-            fill={room.floorColor}
-            opacity={room.floorOpacity}
-            listening={false}
-          />
-        );
-      })}
-
       {/* Walls */}
       {Object.values(room.walls).map((wall) => {
         const openings = openingsByWall[wall.id] ?? [];
@@ -155,6 +137,10 @@ export default function WallLayer({ room, px, units, wallTool, wallSelection, wa
                   hitStrokeWidth={wall.thickness * px + 16}
                   lineCap="round"
                   lineJoin="round"
+                  shadowColor="black"
+                  shadowBlur={10}
+                  shadowOpacity={0.4}
+                  shadowOffsetY={4}
                   listening={interactive}
                   onMouseDown={(e) => {
                     if (!interactive) return;
@@ -196,6 +182,10 @@ export default function WallLayer({ room, px, units, wallTool, wallSelection, wa
             y={j.y * px}
             radius={j.r * px}
             fill={WALL_COLOR}
+            shadowColor="black"
+            shadowBlur={10}
+            shadowOpacity={0.4}
+            shadowOffsetY={4}
             listening={false}
           />
         );
@@ -219,7 +209,7 @@ export default function WallLayer({ room, px, units, wallTool, wallSelection, wa
               x={pt.x * px}
               y={pt.y * px}
               rotation={angleDeg}
-              listening
+              listening={interactive}
               draggable={interactive && wallTool === 'select'}
               dragBoundFunc={function (this: Konva.Node, pos) {
                 // `pos` is in absolute (stage) pixel coordinates, which differ

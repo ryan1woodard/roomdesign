@@ -24,9 +24,7 @@ interface Props {
   getSnapLines: (excludeId: string) => SnapLines;
   onSnapGuideChange: (guides: SnapGuides) => void;
   zoomScale: number; // current stage zoom (cam.scale)
-  /** "Open Compartments" toolbar toggle — when off, a container renders as
-   * a plain solid object, same as any non-container shape. */
-  showCompartments: boolean;
+  showAllLabels: boolean;
   /** Design Mode resizes furniture, and moves/rotates it directly only when
    * the Free Move tool is active (the Move/Rotate tools use a dedicated
    * gizmo instead); Inventory Mode opens it instead. */
@@ -52,7 +50,7 @@ export default function ObjectNode({
   getSnapLines,
   onSnapGuideChange,
   zoomScale,
-  showCompartments,
+  showAllLabels,
   mode,
   objectTool,
   registerNode,
@@ -94,6 +92,10 @@ export default function ObjectNode({
   const isContainer = obj.storage.type === 'grid';
   const cells = isContainer ? gridCells(obj.storage) : [];
   const character = storageCharacter(obj);
+  // The "Open Compartments" canvas overlay was removed as a product decision —
+  // this flag (and the rendering it gates below) is kept in place rather than
+  // deleted in case the feature comes back, but it must never be toggled on.
+  const showCompartments = false;
 
   const centerX = (obj.x + obj.width / 2) * px;
   const centerY = (obj.y + obj.height / 2) * px;
@@ -287,12 +289,12 @@ export default function ObjectNode({
         )}
       </Group>
 
-      {/* Floating name label: always visible, centered on the object regardless
-          of rotation, counter-scaled so it stays a constant, readable screen
-          size at any zoom. Overlapping labels on crowded objects are expected
-          and intentional — legibility of "which object is which" wins over
-          avoiding overlap. */}
-      {obj.kind !== 'text' && (
+      {/* Floating name label: centered on the object regardless of rotation,
+          counter-scaled so it stays a constant, readable screen size at any
+          zoom. Overlapping labels on crowded objects are expected and
+          intentional — legibility of "which object is which" wins over
+          avoiding overlap. Hidden entirely via the Labels toolbar toggle. */}
+      {showAllLabels && obj.kind !== 'text' && (
         <Group x={centerX} y={centerY} scaleX={counterScale} scaleY={counterScale} listening={false}>
           <Text
             x={-LABEL_W / 2}
