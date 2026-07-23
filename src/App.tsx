@@ -109,9 +109,9 @@ export default function App() {
       if (typing) return;
 
       const mod = e.metaKey || e.ctrlKey;
-      if (mod && e.key.toLowerCase() === 'z') {
+      if (mod && (e.key.toLowerCase() === 'z' || e.key.toLowerCase() === 'y')) {
         e.preventDefault();
-        e.shiftKey ? redo() : undo();
+        e.key.toLowerCase() === 'y' || e.shiftKey ? redo() : undo();
       } else if (mode === 'design' && mod && e.key.toLowerCase() === 'd') {
         e.preventDefault();
         selection.forEach((id) => duplicateObject(id));
@@ -119,8 +119,19 @@ export default function App() {
         if (selection.length) copySelection();
       } else if (mode === 'design' && mod && e.key.toLowerCase() === 'v') {
         pasteClipboard();
+      } else if (mod && e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        document.getElementById('global-search-input')?.focus();
       } else if (e.key.toLowerCase() === 'f' && !mod) {
         requestFitToView();
+      } else if (mode === 'design' && !isWallMode && !mod && e.key.toLowerCase() === 'g') {
+        setObjectTool('freeMove');
+      } else if (mode === 'design' && !isWallMode && !mod && e.key.toLowerCase() === 'r') {
+        setObjectTool('rotate');
+      } else if (mode === 'design' && !isWallMode && !mod && e.key.toLowerCase() === 's') {
+        // No dedicated Scale tool yet — Select is the closest equivalent,
+        // since its resize handles are how objects are scaled today.
+        setObjectTool('select');
       } else if (mode === 'design' && (e.key === 'Delete' || e.key === 'Backspace')) {
         if (wallSelection) {
           e.preventDefault();

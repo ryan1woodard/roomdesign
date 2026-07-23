@@ -840,14 +840,14 @@ export const useStore = create<AppState>()(
             const isContainer = kind === 'container';
             const obj: RoomObject = {
               id,
-              name: kind === 'container' ? 'Shelf' : kind === 'text' ? 'Label' : 'Object',
+              name: kind === 'container' ? 'Shelf' : 'Object',
               kind,
               x: at?.x ?? 40,
               y: at?.y ?? 40,
-              width: kind === 'circle' ? 24 : kind === 'text' ? 30 : 48,
-              height: kind === 'circle' ? 24 : kind === 'text' ? 10 : 24,
+              width: kind === 'circle' ? 24 : 48,
+              height: kind === 'circle' ? 24 : 24,
               rotation: 0,
-              fill: kind === 'text' ? 'transparent' : DEFAULT_FILL,
+              fill: DEFAULT_FILL,
               cornerRadius: kind === 'roundedRect' ? 8 : 0,
               notes: '',
               layerId: room.activeLayerId,

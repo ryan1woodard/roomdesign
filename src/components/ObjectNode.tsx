@@ -6,8 +6,9 @@ import type { ObjectTool } from '../store/store';
 import { gridCells, cellName, cellKind, storageCharacter } from '../lib/shelf';
 import { objectBBox, snapTranslate, type SnapLines, type SnapGuides, NO_SNAP_GUIDES } from '../lib/snapping';
 
-const LABEL_W = 140;
-const LABEL_H = 18;
+const LABEL_MIN_W = 60; // px, floor so labels on very narrow objects stay legible
+const LABEL_PAD = 6; // px, horizontal padding keeping wrapped text off the object's edges
+const LABEL_H = 48; // px, tall enough for a wrapped label to run to 3 lines before Konva starts clipping it
 const ICON_GAP = 4; // px, screen-space gap between label text and the storage-type icon below it
 const ICON_W = 24;
 const ICON_H = 17;
@@ -17,7 +18,6 @@ interface Props {
   px: number; // pixels per inch (world scale, before stage zoom)
   selected: boolean;
   searchHit: boolean;
-  dimmed: boolean;
   counts: Record<string, number>;
   showDetail: boolean; // zoom-dependent: show cell labels/counts
   /** Every wall/object edge this object's own edges can snap to (excluding itself), for the Free Move tool. */
@@ -44,7 +44,6 @@ export default function ObjectNode({
   px,
   selected,
   searchHit,
-  dimmed,
   counts,
   showDetail,
   getSnapLines,
@@ -67,6 +66,14 @@ export default function ObjectNode({
 
   const w = obj.width * px;
   const h = obj.height * px;
+  // Labels wrap to stay within the object's own on-screen footprint instead
+  // of overflowing past it. The label itself is counter-scaled to a constant
+  // screen size regardless of zoom (see `counterScale` below), so its local
+  // units already map 1:1 to real screen pixels — matching that requires
+  // sizing off the object's actual on-screen width (`w * zoomScale`), not
+  // its unzoomed world-space width. Very narrow/zoomed-out objects get a
+  // small readable floor rather than wrapping down to one letter per line.
+  const labelW = Math.max(w * zoomScale - LABEL_PAD * 2, LABEL_MIN_W);
 
   useEffect(() => {
     registerNode(obj.id, groupRef.current);
@@ -122,7 +129,6 @@ export default function ObjectNode({
         offsetY={h / 2}
         rotation={obj.rotation}
         draggable={mode === 'design' && objectTool === 'freeMove'}
-        opacity={dimmed ? 0.35 : 1}
         onMouseDown={(e) => {
           e.cancelBubble = true;
           onSelect(obj.id, e.evt.shiftKey);
@@ -193,7 +199,7 @@ export default function ObjectNode({
 
         {obj.kind === 'circle' ? (
           <Ellipse x={w / 2} y={h / 2} radiusX={w / 2} radiusY={h / 2} {...commonShapeProps} />
-        ) : obj.kind === 'text' ? null : (
+        ) : (
           <Rect width={w} height={h} cornerRadius={obj.cornerRadius * px} {...commonShapeProps} />
         )}
 
@@ -276,17 +282,6 @@ export default function ObjectNode({
             );
           })}
 
-        {/* Inline text-object content */}
-        {obj.kind === 'text' && (
-          <Text
-            width={w}
-            text={obj.name}
-            fontSize={Math.max(10, h * 0.6)}
-            fontFamily="Inter, sans-serif"
-            fontStyle="600"
-            fill={obj.fill === 'transparent' ? '#eef1f7' : '#fff'}
-          />
-        )}
       </Group>
 
       {/* Floating name label: centered on the object regardless of rotation,
@@ -294,25 +289,25 @@ export default function ObjectNode({
           zoom. Overlapping labels on crowded objects are expected and
           intentional — legibility of "which object is which" wins over
           avoiding overlap. Hidden entirely via the Labels toolbar toggle. */}
-      {showAllLabels && obj.kind !== 'text' && (
+      {showAllLabels && (
         <Group x={centerX} y={centerY} scaleX={counterScale} scaleY={counterScale} listening={false}>
           <Text
-            x={-LABEL_W / 2}
+            x={-labelW / 2}
             y={-LABEL_H / 2}
-            width={LABEL_W}
+            width={labelW}
             height={LABEL_H}
             align="center"
             verticalAlign="middle"
             text={obj.name}
             fontSize={12}
+            lineHeight={1.2}
             fontFamily="Inter, sans-serif"
             fontStyle="600"
             fill="#eef1f7"
             shadowColor="black"
             shadowBlur={6}
             shadowOpacity={0.8}
-            ellipsis
-            wrap="none"
+            wrap="word"
           />
 
           {/* Inventory Mode: a small glyph identifying the storage character

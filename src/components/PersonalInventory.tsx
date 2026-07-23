@@ -68,7 +68,7 @@ export default function PersonalInventory() {
 
             <div className="personal-inventory-list">
               {mine.length === 0 && (
-                <p className="hint" style={{ padding: 16 }}>
+                <p className="hint empty-state" style={{ padding: 16 }}>
                   You haven't taken any items. Take an item from its inspector panel to see it here.
                 </p>
               )}

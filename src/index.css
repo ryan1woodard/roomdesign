@@ -30,6 +30,10 @@
   --shadow-1: 0 2px 8px rgba(0, 0, 0, 0.35);
   --shadow-2: 0 12px 40px rgba(0, 0, 0, 0.5);
 
+  /* Fixed header row height — the toolbar and search bar both lock to this
+     so they always match exactly, in every state (empty/focused/typing). */
+  --toolbar-h: 48px;
+
   color-scheme: dark;
 }
 

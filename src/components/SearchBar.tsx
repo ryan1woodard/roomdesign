@@ -57,6 +57,7 @@ export default function SearchBar() {
       <div className="searchbar glass">
         <Search size={16} className="search-icon" />
         <input
+          id="global-search-input"
           className="search-input"
           placeholder="Search anything…"
           value={search}

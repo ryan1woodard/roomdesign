@@ -2,7 +2,6 @@ import {
   Square,
   Squircle,
   Circle,
-  Type,
   Boxes,
   Undo2,
   Redo2,
@@ -30,7 +29,6 @@ const TOOLS: { kind: ObjectKind; icon: React.ReactNode; label: string }[] = [
   { kind: 'rect', icon: <Square size={17} />, label: 'Rectangle' },
   { kind: 'roundedRect', icon: <Squircle size={17} />, label: 'Rounded' },
   { kind: 'circle', icon: <Circle size={17} />, label: 'Circle' },
-  { kind: 'text', icon: <Type size={17} />, label: 'Text' },
 ];
 
 const WALL_TOOLS: { tool: 'select' | 'draw' | 'door' | 'window'; icon: React.ReactNode; label: string }[] = [

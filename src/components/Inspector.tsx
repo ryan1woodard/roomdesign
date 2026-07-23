@@ -164,50 +164,48 @@ export default function Inspector() {
               </div>
             </div>
 
-            {obj.kind !== 'text' && (
-              <div className="section">
-                <span className="label">Appearance</span>
-                <div className="swatches">
-                  {SWATCHES.map((c) => (
-                    <button
-                      key={c}
-                      className={`swatch ${obj.fill === c ? 'sel' : ''}`}
-                      style={{ background: c }}
-                      onClick={() => update(obj.id, { fill: c })}
-                    />
-                  ))}
-                  <input
-                    type="color"
-                    className="color-picker"
-                    value={obj.fill.startsWith('#') ? obj.fill : '#3b4a63'}
-                    onChange={(e) => update(obj.id, { fill: e.target.value })}
+            <div className="section">
+              <span className="label">Appearance</span>
+              <div className="swatches">
+                {SWATCHES.map((c) => (
+                  <button
+                    key={c}
+                    className={`swatch ${obj.fill === c ? 'sel' : ''}`}
+                    style={{ background: c }}
+                    onClick={() => update(obj.id, { fill: c })}
                   />
-                </div>
-                {(obj.kind === 'roundedRect' || obj.kind === 'container') && (
-                  <NumberField
-                    label="Corner radius"
-                    value={obj.cornerRadius}
-                    onCommit={(v) => update(obj.id, { cornerRadius: v ?? obj.cornerRadius })}
-                  />
-                )}
-                <span className="label border-label">Border</span>
-                <div className="border-row">
-                  <input
-                    type="color"
-                    className="color-picker"
-                    value={obj.borderColor ?? '#ffffff'}
-                    onChange={(e) => update(obj.id, { borderColor: e.target.value })}
-                  />
-                  <NumberField
-                    label="Weight"
-                    value={obj.borderWidth ?? 0}
-                    min={0}
-                    max={12}
-                    onCommit={(v) => update(obj.id, { borderWidth: Math.max(0, v ?? 0) })}
-                  />
-                </div>
+                ))}
+                <input
+                  type="color"
+                  className="color-picker"
+                  value={obj.fill.startsWith('#') ? obj.fill : '#3b4a63'}
+                  onChange={(e) => update(obj.id, { fill: e.target.value })}
+                />
               </div>
-            )}
+              {(obj.kind === 'roundedRect' || obj.kind === 'container') && (
+                <NumberField
+                  label="Corner radius"
+                  value={obj.cornerRadius}
+                  onCommit={(v) => update(obj.id, { cornerRadius: v ?? obj.cornerRadius })}
+                />
+              )}
+              <span className="label border-label">Border</span>
+              <div className="border-row">
+                <input
+                  type="color"
+                  className="color-picker"
+                  value={obj.borderColor ?? '#ffffff'}
+                  onChange={(e) => update(obj.id, { borderColor: e.target.value })}
+                />
+                <NumberField
+                  label="Weight"
+                  value={obj.borderWidth ?? 0}
+                  min={0}
+                  max={12}
+                  onCommit={(v) => update(obj.id, { borderWidth: Math.max(0, v ?? 0) })}
+                />
+              </div>
+            </div>
 
             <div className="section">
               <span className="label">Layer</span>

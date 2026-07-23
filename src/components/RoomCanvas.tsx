@@ -20,7 +20,6 @@ import StatusBar from './StatusBar';
  * layer) by that layer's real, shadowless fills drawn immediately after —
  * see the two-pass grouping in the object Layer below. */
 function ObjectShadowCaster({ obj, px, selected }: { obj: RoomObject; px: number; selected: boolean }) {
-  if (obj.kind === 'text') return null;
   const w = obj.width * px;
   const h = obj.height * px;
   const character = storageCharacter(obj);
@@ -447,7 +446,6 @@ export default function RoomCanvas() {
                   px={PX_PER_IN}
                   selected={selection.includes(obj.id)}
                   searchHit={searchHits.has(obj.id)}
-                  dimmed={search.trim().length > 0 && !searchHits.has(obj.id)}
                   counts={counts[obj.id] ?? {}}
                   showDetail={showDetail}
                   getSnapLines={getSnapLines}

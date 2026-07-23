@@ -113,7 +113,7 @@ export default function LogViewer() {
             </div>
 
             <div className="log-list">
-              {filtered.length === 0 && <p className="hint" style={{ padding: 16 }}>No matching activity yet.</p>}
+              {filtered.length === 0 && <p className="hint empty-state" style={{ padding: 16 }}>No matching activity yet.</p>}
               {filtered.map((entry) => (
                 <div key={entry.id} className="log-entry">
                   <div className="log-entry-main">

@@ -7,7 +7,7 @@
 
 export type Unit = 'in' | 'ft' | 'cm' | 'm';
 
-export type ObjectKind = 'rect' | 'roundedRect' | 'circle' | 'text' | 'container';
+export type ObjectKind = 'rect' | 'roundedRect' | 'circle' | 'container';
 
 /** A named layer, Figma-style. Objects belong to exactly one layer. */
 export interface Layer {

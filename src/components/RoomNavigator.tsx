@@ -1,8 +1,8 @@
 import { useMemo, useRef, useState } from 'react';
-import { FolderTree, Plus, Upload, ChevronRight, ChevronDown as ChevronDownIcon, Trash2, Pencil } from 'lucide-react';
+import { FolderTree, Plus, Upload, Download, ChevronRight, ChevronDown as ChevronDownIcon, Trash2, Pencil } from 'lucide-react';
 import { useStore, useToastStore } from '../store/store';
 import { computeVisibleBounds } from '../lib/bounds';
-import { parseRoomFile } from '../lib/roomFile';
+import { downloadRoomFile, parseRoomFile } from '../lib/roomFile';
 import type { Room } from '../types';
 
 function RoomThumb({ room }: { room: Room }) {
@@ -165,6 +165,16 @@ export default function RoomNavigator() {
                               }}
                             >
                               <Pencil size={12} />
+                            </button>
+                            <button
+                              className="btn icon"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                downloadRoomFile(r);
+                                pushToast('success', `Room exported as "${r.name}.json"`);
+                              }}
+                            >
+                              <Download size={12} />
                             </button>
                             {roomOrder.length > 1 && (
                               <button
