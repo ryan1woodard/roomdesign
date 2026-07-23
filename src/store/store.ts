@@ -187,8 +187,6 @@ interface AppState extends Doc {
 
   // Settings actions
   setUnit: (u: Settings['units']) => void;
-  toggleGrid: () => void;
-  toggleSnap: () => void;
   toggleShowAllLabels: () => void;
   toggleShowCompartments: () => void;
   setWallThicknessDefault: (v: number) => void;
@@ -586,8 +584,6 @@ export const useStore = create<AppState>()(
       ...buildDemo(),
       settings: {
         units: 'in',
-        gridVisible: true,
-        snapToGrid: true,
         showAllLabels: false,
         showCompartments: false,
         wallThickness: 6,
@@ -630,8 +626,6 @@ export const useStore = create<AppState>()(
       _rev: 0,
 
       setUnit: (units) => set((s) => ({ settings: { ...s.settings, units } })),
-      toggleGrid: () => set((s) => ({ settings: { ...s.settings, gridVisible: !s.settings.gridVisible } })),
-      toggleSnap: () => set((s) => ({ settings: { ...s.settings, snapToGrid: !s.settings.snapToGrid } })),
       toggleShowAllLabels: () => set((s) => ({ settings: { ...s.settings, showAllLabels: !s.settings.showAllLabels } })),
       toggleShowCompartments: () => set((s) => ({ settings: { ...s.settings, showCompartments: !s.settings.showCompartments } })),
       setWallThicknessDefault: (v) => set((s) => ({ settings: { ...s.settings, wallThickness: Math.max(1, v) } })),
@@ -855,7 +849,6 @@ export const useStore = create<AppState>()(
               y: at?.y ?? 40,
               width: kind === 'circle' ? 24 : kind === 'text' ? 30 : 48,
               height: kind === 'circle' ? 24 : kind === 'text' ? 10 : 24,
-              depthIn: 24,
               rotation: 0,
               fill: kind === 'text' ? 'transparent' : DEFAULT_FILL,
               cornerRadius: kind === 'roundedRect' ? 8 : 0,

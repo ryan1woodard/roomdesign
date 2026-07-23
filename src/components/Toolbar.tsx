@@ -4,8 +4,6 @@ import {
   Circle,
   Type,
   Boxes,
-  Grid3x3,
-  Magnet,
   Undo2,
   Redo2,
   Tags,
@@ -47,8 +45,6 @@ export default function Toolbar() {
   const settings = useStore((s) => s.settings);
   const room = useActiveRoom();
   const addObject = useStore((s) => s.addObject);
-  const toggleGrid = useStore((s) => s.toggleGrid);
-  const toggleSnap = useStore((s) => s.toggleSnap);
   const toggleShowAllLabels = useStore((s) => s.toggleShowAllLabels);
   const toggleShowCompartments = useStore((s) => s.toggleShowCompartments);
   const setUnit = useStore((s) => s.setUnit);
@@ -138,20 +134,6 @@ export default function Toolbar() {
 
       <div className="divider-v" />
 
-      {mode === 'design' && (
-        <>
-          <Tooltip label="Grid">
-            <button className={`btn icon ${settings.gridVisible ? 'active' : ''}`} onClick={toggleGrid}>
-              <Grid3x3 size={17} />
-            </button>
-          </Tooltip>
-          <Tooltip label="Snap">
-            <button className={`btn icon ${settings.snapToGrid ? 'active' : ''}`} onClick={toggleSnap}>
-              <Magnet size={17} />
-            </button>
-          </Tooltip>
-        </>
-      )}
       <Tooltip label="Labels">
         <button className={`btn icon ${settings.showAllLabels ? 'active' : ''}`} onClick={toggleShowAllLabels}>
           <Tags size={17} />

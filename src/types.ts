@@ -67,10 +67,12 @@ export interface RoomObject {
   width: number;
   /** Footprint height/depth in inches (screen-vertical before rotation). */
   height: number;
-  /** Physical vertical extent (height) in inches. */
-  depthIn: number;
   rotation: number;
   fill: string;
+  /** Outline color; unset falls back to the default subtle selection-independent outline. */
+  borderColor?: string;
+  /** Outline weight in screen px; unset or 0 means no custom border. */
+  borderWidth?: number;
   cornerRadius: number;
   notes: string;
   layerId: string;
@@ -131,8 +133,6 @@ export type AppMode = 'design' | 'inventory';
 
 export interface Settings {
   units: Unit;
-  gridVisible: boolean;
-  snapToGrid: boolean;
   /** Global override — show every object's label regardless of hover state. */
   showAllLabels: boolean;
   /** Preview containers' internal compartment layout (shelf/drawer/grid

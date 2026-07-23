@@ -4,6 +4,7 @@ import Konva from 'konva';
 import type { RoomObject, AppMode } from '../types';
 import type { ObjectTool } from '../store/store';
 import { gridCells, cellName, cellKind, storageCharacter } from '../lib/shelf';
+import { objectBBox, snapTranslate, type SnapLines, type SnapGuides, NO_SNAP_GUIDES } from '../lib/snapping';
 
 const LABEL_GAP = 6; // px, screen-space gap between object's top edge and its label
 const LABEL_W = 140;
@@ -19,7 +20,9 @@ interface Props {
   dimmed: boolean;
   counts: Record<string, number>;
   showDetail: boolean; // zoom-dependent: show cell labels/counts
-  snapIn: number | null; // grid snap step in inches, or null — only used by the Free Move tool
+  /** Every wall/object edge this object's own edges can snap to (excluding itself), for the Free Move tool. */
+  getSnapLines: (excludeId: string) => SnapLines;
+  onSnapGuideChange: (guides: SnapGuides) => void;
   zoomScale: number; // current stage zoom (cam.scale)
   showAllLabels: boolean;
   /** "Open Compartments" toolbar toggle — when off, a container renders as
@@ -66,7 +69,8 @@ export default function ObjectNode({
   dimmed,
   counts,
   showDetail,
-  snapIn,
+  getSnapLines,
+  onSnapGuideChange,
   zoomScale,
   showAllLabels,
   showCompartments,
@@ -85,6 +89,7 @@ export default function ObjectNode({
   const labelRef = useRef<Konva.Group>(null);
   const labelTweenRef = useRef<Konva.Tween | null>(null);
   const hoverRef = useRef(false);
+  const dragSnapLinesRef = useRef<SnapLines>({ vertical: [], horizontal: [] });
 
   // Destroying the same Konva.Tween instance twice throws, and the label's
   // fade is driven from three independent places (the effect below, plus the
@@ -146,8 +151,9 @@ export default function ObjectNode({
   const topOffset = rotatedTopOffset(w, h, obj.rotation);
   const counterScale = 1 / Math.max(0.001, zoomScale);
 
-  const stroke = selected ? '#4f8cff' : 'rgba(255,255,255,0.14)';
-  const strokeW = selected ? 2 : 1;
+  const hasCustomBorder = !selected && (obj.borderWidth ?? 0) > 0;
+  const stroke = selected ? '#4f8cff' : hasCustomBorder ? obj.borderColor || '#ffffff' : 'rgba(255,255,255,0.14)';
+  const strokeW = selected ? 2 : hasCustomBorder ? obj.borderWidth! : 1;
 
   const commonShapeProps = {
     fill: obj.fill === 'transparent' ? undefined : obj.fill,
@@ -206,26 +212,27 @@ export default function ObjectNode({
           if (isContainer) onOpenPicker(obj.id);
           else onOpenCell(obj.id, 'surface');
         }}
+        onDragStart={() => {
+          dragSnapLinesRef.current = getSnapLines(obj.id);
+        }}
         onDragMove={() => {
           const n = groupRef.current!;
           let tlx = n.x() / px - obj.width / 2;
           let tly = n.y() / px - obj.height / 2;
-          if (snapIn) {
-            tlx = Math.round(tlx / snapIn) * snapIn;
-            tly = Math.round(tly / snapIn) * snapIn;
-            n.x((tlx + obj.width / 2) * px);
-            n.y((tly + obj.height / 2) * px);
-          }
+          const bbox = objectBBox({ ...obj, x: tlx, y: tly });
+          const { dx, dy, guides } = snapTranslate(bbox, dragSnapLinesRef.current);
+          tlx += dx;
+          tly += dy;
+          n.x((tlx + obj.width / 2) * px);
+          n.y((tly + obj.height / 2) * px);
+          onSnapGuideChange(guides);
           onDragMove(obj.id, tlx, tly);
         }}
         onDragEnd={() => {
           const n = groupRef.current!;
-          let tlx = n.x() / px - obj.width / 2;
-          let tly = n.y() / px - obj.height / 2;
-          if (snapIn) {
-            tlx = Math.round(tlx / snapIn) * snapIn;
-            tly = Math.round(tly / snapIn) * snapIn;
-          }
+          const tlx = n.x() / px - obj.width / 2;
+          const tly = n.y() / px - obj.height / 2;
+          onSnapGuideChange(NO_SNAP_GUIDES);
           onDragEnd(obj.id, tlx, tly);
         }}
       >

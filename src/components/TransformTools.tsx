@@ -4,6 +4,7 @@ import Konva from 'konva';
 import type { RoomObject, Unit } from '../types';
 import type { ObjectTool } from '../store/store';
 import { formatLength } from '../lib/units';
+import { objectBBox, snapTranslate, type SnapLines, type SnapGuides, NO_SNAP_GUIDES } from '../lib/snapping';
 
 const ACCENT = '#4f8cff';
 const ACCENT_HOVER = '#7db0ff';
@@ -19,7 +20,8 @@ interface Props {
   px: number;
   zoomScale: number;
   tool: Extract<ObjectTool, 'move' | 'rotate'>;
-  snapIn: number | null;
+  getSnapLines: (excludeId: string) => SnapLines;
+  onSnapGuideChange: (guides: SnapGuides) => void;
   units: Unit;
   onUpdate: (patch: Partial<RoomObject>) => void;
 }
@@ -45,7 +47,7 @@ function ReadoutLabel({ x, y, text, counterScale }: { x: number; y: number; text
  * than the plain world*px coordinates every object position is expressed
  * in here, which made the handles rotate/move by the wrong amount.
  */
-export default function TransformTools({ obj, px, zoomScale, tool, snapIn, units, onUpdate }: Props) {
+export default function TransformTools({ obj, px, zoomScale, tool, getSnapLines, onSnapGuideChange, units, onUpdate }: Props) {
   const counterScale = 1 / Math.max(0.001, zoomScale);
   const centerX = (obj.x + obj.width / 2) * px;
   const centerY = (obj.y + obj.height / 2) * px;
@@ -56,6 +58,7 @@ export default function TransformTools({ obj, px, zoomScale, tool, snapIn, units
   const [rotateReadout, setRotateReadout] = useState<number | null>(null);
   const [hovered, setHovered] = useState<HandleId | null>(null);
   const draggingRef = useRef(false);
+  const dragSnapLinesRef = useRef<SnapLines>({ vertical: [], horizontal: [] });
 
   const handleRefs = {
     center: useRef<Konva.Group>(null),
@@ -63,8 +66,6 @@ export default function TransformTools({ obj, px, zoomScale, tool, snapIn, units
     y: useRef<Konva.Group>(null),
     rotate: useRef<Konva.Group>(null),
   };
-
-  const snap = (v: number) => (snapIn ? Math.round(v / snapIn) * snapIn : v);
 
   const popIn = (id: HandleId) => {
     setHovered(id);
@@ -86,6 +87,7 @@ export default function TransformTools({ obj, px, zoomScale, tool, snapIn, units
     const startPointer = stage.getRelativePointerPosition();
     if (!startPointer) return;
     const startObj = { x: obj.x, y: obj.y };
+    dragSnapLinesRef.current = getSnapLines(obj.id);
     draggingRef.current = true;
     setGrabCursor(stage, 'grabbing');
     setMoveReadout({ dx: 0, dy: 0 });
@@ -95,9 +97,14 @@ export default function TransformTools({ obj, px, zoomScale, tool, snapIn, units
       if (!p) return;
       const dxIn = axis === 'y' ? 0 : (p.x - startPointer.x) / px;
       const dyIn = axis === 'x' ? 0 : (p.y - startPointer.y) / px;
-      const newX = snap(startObj.x + dxIn);
-      const newY = snap(startObj.y + dyIn);
+      let newX = startObj.x + dxIn;
+      let newY = startObj.y + dyIn;
+      const bbox = objectBBox({ ...obj, x: newX, y: newY });
+      const { dx, dy, guides } = snapTranslate(bbox, dragSnapLinesRef.current);
+      if (axis !== 'y') newX += dx;
+      if (axis !== 'x') newY += dy;
       onUpdate(axis === 'y' ? { y: newY } : axis === 'x' ? { x: newX } : { x: newX, y: newY });
+      onSnapGuideChange({ v: axis !== 'y' ? guides.v : null, h: axis !== 'x' ? guides.h : null });
       setMoveReadout({
         dx: axis === 'y' ? 0 : newX - startObj.x,
         dy: axis === 'x' ? 0 : newY - startObj.y,
@@ -109,6 +116,7 @@ export default function TransformTools({ obj, px, zoomScale, tool, snapIn, units
       draggingRef.current = false;
       setGrabCursor(stage, hovered ? 'grab' : '');
       setMoveReadout(null);
+      onSnapGuideChange(NO_SNAP_GUIDES);
     };
     stage.on('mousemove.transform touchmove.transform', move);
     stage.on('mouseup.transform touchend.transform', up);

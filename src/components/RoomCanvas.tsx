@@ -5,13 +5,13 @@ import { useStore, useActiveRoom } from '../store/store';
 import { objectsMatchingSearch } from '../lib/selectors';
 import { computeVisibleBounds } from '../lib/bounds';
 import { computeWallCandidate } from '../lib/walls';
+import { collectSnapLines, snapEdges, type BBox, type SnapGuides, NO_SNAP_GUIDES } from '../lib/snapping';
 import ObjectNode from './ObjectNode';
 import TransformTools from './TransformTools';
 import WallLayer from './WallLayer';
 import StatusBar from './StatusBar';
 
 export const PX_PER_IN = 6; // world scale before stage zoom
-const GRID_IN = 6; // grid + snap step, inches
 const MIN_SCALE = 0.08;
 const MAX_SCALE = 6;
 const CAMERA_COMMIT_DEBOUNCE = 300;
@@ -48,6 +48,7 @@ export default function RoomCanvas() {
   const fitAnimRef = useRef<number | null>(null);
   const [liveCursor, setLiveCursor] = useState<{ x: number; y: number } | null>(null);
   const lastCursorUpdate = useRef(0);
+  const [snapGuide, setSnapGuide] = useState<SnapGuides>(NO_SNAP_GUIDES);
 
   const tags = useStore((s) => s.tags);
   const selection = useStore((s) => s.selection);
@@ -172,8 +173,6 @@ export default function RoomCanvas() {
     commitCameraDebounced(next);
   };
 
-  const snapIn = settings.snapToGrid ? GRID_IN : null;
-
   const handleObjSelect = (id: string, additive: boolean) => {
     if (additive) {
       const next = selection.includes(id) ? selection.filter((x) => x !== id) : [...selection, id];
@@ -182,6 +181,8 @@ export default function RoomCanvas() {
       setSelection([id]);
     }
   };
+
+  const getSnapLines = useCallback((excludeId: string) => collectSnapLines(room, excludeId), [room]);
 
   const onTransformEnd = () => {
     if (selection.length !== 1) return;
@@ -194,47 +195,21 @@ export default function RoomCanvas() {
     node.scaleY(1);
     const newW = Math.max(2, obj.width * scaleX);
     const newH = Math.max(2, obj.height * scaleY);
+    // The node's runtime x/y already reflect the new center Konva computed to
+    // keep the anchor corner you actually dragged fixed (any corner other
+    // than bottom-right shifts the center) — read them back instead of only
+    // width/height, or the object snaps back to its old position on the next
+    // render whenever you resize from the top, left, or any non-bottom-right handle.
+    const newCenterX = node.x() / PX_PER_IN;
+    const newCenterY = node.y() / PX_PER_IN;
     updateObject(obj.id, {
+      x: Math.round(newCenterX - newW / 2),
+      y: Math.round(newCenterY - newH / 2),
       width: Math.round(newW),
       height: Math.round(newH),
     });
+    setSnapGuide(NO_SNAP_GUIDES);
   };
-
-  // Grid lines across the visible world region.
-  const grid = useMemo(() => {
-    if (!settings.gridVisible) return null;
-    const step = GRID_IN * PX_PER_IN;
-    const left = -cam.x / cam.scale;
-    const top = -cam.y / cam.scale;
-    const right = (w - cam.x) / cam.scale;
-    const bottom = (h - cam.y) / cam.scale;
-    const startX = Math.floor(left / step) * step;
-    const startY = Math.floor(top / step) * step;
-    const lines: React.ReactNode[] = [];
-    for (let x = startX; x < right; x += step) {
-      const major = Math.round(x / step) % 2 === 0;
-      lines.push(
-        <Line
-          key={`v${x}`}
-          points={[x, top, x, bottom]}
-          stroke={major ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.035)'}
-          strokeWidth={1 / cam.scale}
-        />,
-      );
-    }
-    for (let y = startY; y < bottom; y += step) {
-      const major = Math.round(y / step) % 2 === 0;
-      lines.push(
-        <Line
-          key={`h${y}`}
-          points={[left, y, right, y]}
-          stroke={major ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.035)'}
-          strokeWidth={1 / cam.scale}
-        />,
-      );
-    }
-    return lines;
-  }, [settings.gridVisible, cam, w, h]);
 
   const objectList = useMemo(() => {
     const layerIndex = new Map(layers.map((l, i) => [l.id, i]));
@@ -402,8 +377,6 @@ export default function RoomCanvas() {
         onContextMenu={(e) => e.evt.preventDefault()}
         style={{ background: 'transparent' }}
       >
-        <Layer listening={false}>{grid}</Layer>
-
         <Layer>
           <WallLayer
             room={room}
@@ -429,7 +402,8 @@ export default function RoomCanvas() {
               dimmed={search.trim().length > 0 && !searchHits.has(obj.id)}
               counts={counts[obj.id] ?? {}}
               showDetail={showDetail}
-              snapIn={snapIn}
+              getSnapLines={getSnapLines}
+              onSnapGuideChange={setSnapGuide}
               zoomScale={cam.scale}
               showAllLabels={settings.showAllLabels}
               showCompartments={settings.showCompartments}
@@ -454,7 +428,49 @@ export default function RoomCanvas() {
               anchorFill="#12151d"
               anchorSize={9}
               onTransformEnd={onTransformEnd}
-              boundBoxFunc={(oldBox, newBox) => (newBox.width < 8 || newBox.height < 8 ? oldBox : newBox)}
+              boundBoxFunc={(oldBox, newBox) => {
+                if (newBox.width < 8 || newBox.height < 8) return oldBox;
+                const stage = trRef.current?.getStage();
+                const obj = selection.length === 1 ? objects[selection[0]] : null;
+                if (!stage || !obj) return newBox;
+
+                // `oldBox`/`newBox` are in absolute stage pixels (they account
+                // for camera pan/zoom), a different space than the world*px
+                // coordinates every object position is expressed in — convert
+                // through the stage's transform before snapping, and back after,
+                // the same technique used to fix the door/window drag-off-screen bug.
+                const inverse = stage.getAbsoluteTransform().copy().invert();
+                const toWorld = (x: number, y: number) => {
+                  const p = inverse.point({ x, y });
+                  return { x: p.x / PX_PER_IN, y: p.y / PX_PER_IN };
+                };
+                const oldTL = toWorld(oldBox.x, oldBox.y);
+                const oldBR = toWorld(oldBox.x + oldBox.width, oldBox.y + oldBox.height);
+                const newTL = toWorld(newBox.x, newBox.y);
+                const newBR = toWorld(newBox.x + newBox.width, newBox.y + newBox.height);
+
+                const stationary: BBox = {
+                  left: Math.min(oldTL.x, oldBR.x),
+                  right: Math.max(oldTL.x, oldBR.x),
+                  top: Math.min(oldTL.y, oldBR.y),
+                  bottom: Math.max(oldTL.y, oldBR.y),
+                };
+                const candidate: BBox = {
+                  left: Math.min(newTL.x, newBR.x),
+                  right: Math.max(newTL.x, newBR.x),
+                  top: Math.min(newTL.y, newBR.y),
+                  bottom: Math.max(newTL.y, newBR.y),
+                };
+
+                const snapped = snapEdges(candidate, stationary, getSnapLines(obj.id));
+                setSnapGuide(snapped.guides);
+
+                const forward = stage.getAbsoluteTransform();
+                const p0 = forward.point({ x: snapped.left * PX_PER_IN, y: snapped.top * PX_PER_IN });
+                const p1 = forward.point({ x: snapped.right * PX_PER_IN, y: snapped.bottom * PX_PER_IN });
+
+                return { x: p0.x, y: p0.y, width: p1.x - p0.x, height: p1.y - p0.y, rotation: newBox.rotation };
+              }}
             />
           )}
           {mode === 'design' &&
@@ -468,11 +484,30 @@ export default function RoomCanvas() {
                 px={PX_PER_IN}
                 zoomScale={cam.scale}
                 tool={objectTool}
-                snapIn={snapIn}
+                getSnapLines={getSnapLines}
+                onSnapGuideChange={setSnapGuide}
                 units={settings.units}
                 onUpdate={(patch) => updateObject(selection[0], patch)}
               />
             )}
+          {mode === 'design' && !isWallMode && snapGuide.v && (
+            <Line
+              points={[snapGuide.v.x * PX_PER_IN, snapGuide.v.y0 * PX_PER_IN, snapGuide.v.x * PX_PER_IN, snapGuide.v.y1 * PX_PER_IN]}
+              stroke="#ff4fc3"
+              strokeWidth={1.5 / cam.scale}
+              dash={[6 / cam.scale, 4 / cam.scale]}
+              listening={false}
+            />
+          )}
+          {mode === 'design' && !isWallMode && snapGuide.h && (
+            <Line
+              points={[snapGuide.h.x0 * PX_PER_IN, snapGuide.h.y * PX_PER_IN, snapGuide.h.x1 * PX_PER_IN, snapGuide.h.y * PX_PER_IN]}
+              stroke="#ff4fc3"
+              strokeWidth={1.5 / cam.scale}
+              dash={[6 / cam.scale, 4 / cam.scale]}
+              listening={false}
+            />
+          )}
         </Layer>
       </Stage>
 

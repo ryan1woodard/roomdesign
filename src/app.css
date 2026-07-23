@@ -499,6 +499,16 @@
   transform: scale(1.1);
   border-color: var(--accent);
 }
+.border-label {
+  display: block;
+  margin-top: 10px;
+}
+.border-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
 .inspector-actions {
   display: flex;
   gap: 8px;

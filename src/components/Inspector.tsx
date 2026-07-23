@@ -161,7 +161,6 @@ export default function Inspector() {
               <div className="grid-2">
                 <NumberField label="Width" value={dispLen(obj.width)} unitLabel={u} onCommit={(v) => setLen('width')(v ?? dispLen(obj.width))} />
                 <NumberField label="Depth" value={dispLen(obj.height)} unitLabel={u} onCommit={(v) => setLen('height')(v ?? dispLen(obj.height))} />
-                <NumberField label="Height" value={dispLen(obj.depthIn)} unitLabel={u} onCommit={(v) => setLen('depthIn')(v ?? dispLen(obj.depthIn))} />
               </div>
             </div>
 
@@ -191,6 +190,22 @@ export default function Inspector() {
                     onCommit={(v) => update(obj.id, { cornerRadius: v ?? obj.cornerRadius })}
                   />
                 )}
+                <span className="label border-label">Border</span>
+                <div className="border-row">
+                  <input
+                    type="color"
+                    className="color-picker"
+                    value={obj.borderColor ?? '#ffffff'}
+                    onChange={(e) => update(obj.id, { borderColor: e.target.value })}
+                  />
+                  <NumberField
+                    label="Weight"
+                    value={obj.borderWidth ?? 0}
+                    min={0}
+                    max={12}
+                    onCommit={(v) => update(obj.id, { borderWidth: Math.max(0, v ?? 0) })}
+                  />
+                </div>
               </div>
             )}
 
