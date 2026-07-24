@@ -29,3 +29,6 @@ logs
 
 # TypeScript incremental build info
 *.tsbuildinfo
+
+# server's local SQLite database (shared doc + logs) — per-deployment data
+server/data

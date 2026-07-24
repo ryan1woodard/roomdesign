@@ -102,7 +102,12 @@ const lfStorage = {
   },
 };
 
-interface Doc {
+/** The room/inventory data multiple users on the same server share and
+ * co-edit live — see `src/lib/sync.ts`, which pushes/receives exactly this
+ * shape over the server's WebSocket. Per-device concerns (`settings`,
+ * `currentUser`, which room this tab has open, undo history, UI toggles)
+ * deliberately stay out of it and out of the sync channel entirely. */
+export interface Doc {
   rooms: Record<string, Room>;
   roomOrder: string[];
   tags: Record<string, Tag>;
@@ -171,6 +176,7 @@ interface AppState extends Doc {
   logScopeFilter: LogScope | 'all';
   inventoryDbOpen: boolean;
   myInventoryOpen: boolean;
+  systemLogOpen: boolean;
 
   wallTool: WallTool;
   wallDraft: { startVertexId: string; lastVertexId: string } | null;
@@ -209,6 +215,8 @@ interface AppState extends Doc {
   openMyInventory: () => void;
   closeMyInventory: () => void;
   setLogScopeFilter: (scope: LogScope | 'all') => void;
+  openSystemLog: () => void;
+  closeSystemLog: () => void;
 
   // Room actions
   addRoom: (name?: string) => string;
@@ -612,6 +620,7 @@ export const useStore = create<AppState>()(
       inventoryDbOpen: false,
       checkouts: {},
       myInventoryOpen: false,
+      systemLogOpen: false,
 
       wallTool: 'select',
       wallDraft: null,
@@ -664,6 +673,8 @@ export const useStore = create<AppState>()(
       closeInventoryDb: () => set({ inventoryDbOpen: false }),
       openMyInventory: () => set({ myInventoryOpen: true }),
       closeMyInventory: () => set({ myInventoryOpen: false }),
+      openSystemLog: () => set({ systemLogOpen: true }),
+      closeSystemLog: () => set({ systemLogOpen: false }),
 
       addRoom: (name) => {
         const room = emptyRoom(name?.trim() || 'New Room');
