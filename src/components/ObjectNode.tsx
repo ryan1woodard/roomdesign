@@ -8,33 +8,11 @@ import { objectBBox, snapTranslate, type SnapLines, type SnapGuides, NO_SNAP_GUI
 
 const LABEL_MIN_W = 60; // px, floor so labels on very narrow objects stay legible
 const LABEL_PAD = 6; // px, horizontal padding keeping wrapped text off the object's edges
-const LABEL_GAP = 8; // px, screen-space gap between the object's bottom edge and its label
 const LABEL_FONT_SIZE = 12;
 const LABEL_LINE_H = 15; // px, measured line height at LABEL_FONT_SIZE/600 weight
 const ICON_GAP = 6; // px, screen-space gap between the label's last line and the storage-type icon below it
 const ICON_W = 24;
 const ICON_H = 17;
-
-/** Topmost/bottommost screen-space Y of a rotated object's bounding box,
- * relative to its own center — used to anchor the label just past the
- * object's actual (rotation-aware) lower edge instead of its unrotated one. */
-function rotatedBottomOffset(width: number, height: number, rotationDeg: number): number {
-  const rad = (rotationDeg * Math.PI) / 180;
-  const hw = width / 2;
-  const hh = height / 2;
-  const corners = [
-    [-hw, -hh],
-    [hw, -hh],
-    [hw, hh],
-    [-hw, hh],
-  ];
-  let maxY = -Infinity;
-  for (const [x, y] of corners) {
-    const ry = x * Math.sin(rad) + y * Math.cos(rad);
-    if (ry > maxY) maxY = ry;
-  }
-  return maxY;
-}
 
 // Shared, lazily-created canvas context used only to measure text — lets us
 // compute how many lines a wrapped label will occupy synchronously during
@@ -128,7 +106,10 @@ export default function ObjectNode({
   const labelW = Math.max(w * zoomScale - LABEL_PAD * 2, LABEL_MIN_W);
   const labelLines = wrappedLineCount(obj.name, labelW, LABEL_FONT_SIZE);
   const labelTextH = labelLines * LABEL_LINE_H;
-  const bottomOffset = rotatedBottomOffset(w, h, obj.rotation);
+  // Label + (in Inventory Mode) its storage-type icon are centered on the
+  // object as one vertical block, so the block's total height determines how
+  // far above center the text starts.
+  const labelBlockH = labelTextH + (mode === 'inventory' ? ICON_GAP + ICON_H : 0);
 
   useEffect(() => {
     registerNode(obj.id, groupRef.current);
@@ -339,16 +320,16 @@ export default function ObjectNode({
 
       </Group>
 
-      {/* Floating name label: anchored just below the object's own (rotation-
-          aware) lower edge — object, then name, then (in Inventory Mode) its
-          storage-type icon, top to bottom — counter-scaled so it stays a
+      {/* Floating name label: centered on the object itself — name, then (in
+          Inventory Mode) its storage-type icon, stacked as one block centered
+          on the object's center point — counter-scaled so it stays a
           constant, readable screen size at any zoom. Hidden entirely via the
           Labels toolbar toggle. */}
       {showAllLabels && (
-        <Group x={centerX} y={centerY + bottomOffset} scaleX={counterScale} scaleY={counterScale} listening={false}>
+        <Group x={centerX} y={centerY} scaleX={counterScale} scaleY={counterScale} listening={false}>
           <Text
             x={-labelW / 2}
-            y={LABEL_GAP}
+            y={-labelBlockH / 2}
             width={labelW}
             height={labelTextH}
             align="center"
@@ -370,7 +351,7 @@ export default function ObjectNode({
               replaces the old corner badge so it reads clearly at the label's
               fixed on-screen size regardless of zoom. */}
           {mode === 'inventory' && (
-            <Group x={-ICON_W / 2} y={LABEL_GAP + labelTextH + ICON_GAP}>
+            <Group x={-ICON_W / 2} y={-labelBlockH / 2 + labelTextH + ICON_GAP}>
               <Rect
                 width={ICON_W}
                 height={ICON_H}

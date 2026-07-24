@@ -195,7 +195,13 @@ export default function ShelfLayoutModal() {
 
   const selArr = [...selected];
   const singleKey = selArr.length === 1 ? selArr[0] : null;
-  const singleMeta = singleKey ? storage.cells[singleKey] : null;
+  // Falls back to a default rather than `null` so the compartment editor
+  // (kind toggle, Unmerge) still shows for a cell that has no stored
+  // metadata yet — e.g. any compartment on a freshly-created Shelf/Cabinet
+  // object, whose `cells` map starts empty until rows/cols are first
+  // resized. Without this fallback, selecting such a cell silently showed
+  // no controls at all.
+  const singleMeta = singleKey ? (storage.cells[singleKey] ?? { kind: 'shelf' as const }) : null;
   const singleRect = singleKey ? cells.find((c) => c.key === singleKey) : null;
   const singleNumber = singleRect ? cells.indexOf(singleRect) + 1 : null;
   const isMergedSingle = !!singleRect && (singleRect.rowSpan > 1 || singleRect.colSpan > 1);
