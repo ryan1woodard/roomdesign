@@ -18,13 +18,11 @@ import {
   Hand,
   Tags,
   Shapes,
-  Bug,
 } from 'lucide-react';
 import { useStore, useActiveRoom } from '../store/store';
 import { ALL_UNITS, UNIT_LABEL } from '../lib/units';
 import type { ObjectKind } from '../types';
 import SaveIndicator from './SaveIndicator';
-import SyncIndicator from './SyncIndicator';
 import Tooltip from './Tooltip';
 
 const TOOLS: { kind: ObjectKind; icon: React.ReactNode; label: string }[] = [
@@ -60,7 +58,6 @@ export default function Toolbar() {
   const openLogViewer = useStore((s) => s.openLogViewer);
   const openInventoryDb = useStore((s) => s.openInventoryDb);
   const openMyInventory = useStore((s) => s.openMyInventory);
-  const openSystemLog = useStore((s) => s.openSystemLog);
 
   const mode = settings.mode;
   const activeLayer = room.layers.find((l) => l.id === room.activeLayerId);
@@ -73,7 +70,6 @@ export default function Toolbar() {
         <span className="brand-name">SRS Lab Designer</span>
       </div>
       <SaveIndicator />
-      <SyncIndicator />
       {mode !== 'inventory' && <div className="divider-v" />}
 
       {mode === 'inventory' ? null : isWallMode ? (
@@ -149,11 +145,6 @@ export default function Toolbar() {
       <Tooltip label="Fit to View (F)">
         <button className="btn icon" onClick={requestFitToView}>
           <Maximize size={17} />
-        </button>
-      </Tooltip>
-      <Tooltip label="System Log">
-        <button className="btn icon" onClick={openSystemLog}>
-          <Bug size={17} />
         </button>
       </Tooltip>
       {mode === 'inventory' && (

@@ -1,6 +1,5 @@
 import { Component, type ReactNode } from 'react';
 import { AlertTriangle, RotateCcw, Trash2 } from 'lucide-react';
-import { reportError } from '../lib/errorReporting';
 
 interface Props {
   children: ReactNode;
@@ -24,7 +23,7 @@ export default class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
-    reportError(error, 'Uncaught render error' + (info.componentStack ? ` in${info.componentStack.split('\n')[1] ?? ''}` : ''));
+    console.error('Uncaught render error:', error, info.componentStack);
   }
 
   handleReload = () => {

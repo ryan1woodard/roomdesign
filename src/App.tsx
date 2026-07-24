@@ -15,7 +15,6 @@ import LoadingScreen from './components/LoadingScreen';
 import LogViewer from './components/LogViewer';
 import InventoryDatabase from './components/InventoryDatabase';
 import PersonalInventory from './components/PersonalInventory';
-import SystemLogViewer from './components/SystemLogViewer';
 import LoginScreen from './components/LoginScreen';
 import UserMenu from './components/UserMenu';
 import ToastStack from './components/Toast';
@@ -219,7 +218,6 @@ export default function App() {
       <LogViewer />
       <InventoryDatabase />
       <PersonalInventory />
-      <SystemLogViewer />
       <ToastStack />
     </div>
   );
