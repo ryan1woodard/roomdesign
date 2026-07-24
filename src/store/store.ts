@@ -188,6 +188,7 @@ interface AppState extends Doc {
   // Settings actions
   setUnit: (u: Settings['units']) => void;
   toggleShowAllLabels: () => void;
+  toggleShowIcons: () => void;
   setWallThicknessDefault: (v: number) => void;
   setMode: (mode: AppMode) => void;
   setObjectTool: (tool: ObjectTool) => void;
@@ -584,6 +585,7 @@ export const useStore = create<AppState>()(
       settings: {
         units: 'in',
         showAllLabels: true,
+        showIcons: true,
         wallThickness: 6,
         mode: 'design',
       },
@@ -625,6 +627,7 @@ export const useStore = create<AppState>()(
 
       setUnit: (units) => set((s) => ({ settings: { ...s.settings, units } })),
       toggleShowAllLabels: () => set((s) => ({ settings: { ...s.settings, showAllLabels: !(s.settings.showAllLabels ?? true) } })),
+      toggleShowIcons: () => set((s) => ({ settings: { ...s.settings, showIcons: !(s.settings.showIcons ?? true) } })),
       setWallThicknessDefault: (v) => set((s) => ({ settings: { ...s.settings, wallThickness: Math.max(1, v) } })),
       setMode: (mode) =>
         set((s) => ({

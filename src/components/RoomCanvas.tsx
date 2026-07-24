@@ -452,6 +452,7 @@ export default function RoomCanvas() {
                   onSnapGuideChange={setSnapGuide}
                   zoomScale={cam.scale}
                   showAllLabels={settings.showAllLabels ?? true}
+                  showIcons={settings.showIcons ?? true}
                   mode={mode}
                   objectTool={objectTool}
                   registerNode={registerNode}

@@ -17,6 +17,7 @@ import {
   RotateCw,
   Hand,
   Tags,
+  Shapes,
 } from 'lucide-react';
 import { useStore, useActiveRoom } from '../store/store';
 import { ALL_UNITS, UNIT_LABEL } from '../lib/units';
@@ -43,6 +44,7 @@ export default function Toolbar() {
   const room = useActiveRoom();
   const addObject = useStore((s) => s.addObject);
   const toggleShowAllLabels = useStore((s) => s.toggleShowAllLabels);
+  const toggleShowIcons = useStore((s) => s.toggleShowIcons);
   const setUnit = useStore((s) => s.setUnit);
   const undo = useStore((s) => s.undo);
   const redo = useStore((s) => s.redo);
@@ -133,6 +135,11 @@ export default function Toolbar() {
       <Tooltip label="Labels">
         <button className={`btn icon ${settings.showAllLabels ?? true ? 'active' : ''}`} onClick={toggleShowAllLabels}>
           <Tags size={17} />
+        </button>
+      </Tooltip>
+      <Tooltip label="Icons">
+        <button className={`btn icon ${settings.showIcons ?? true ? 'active' : ''}`} onClick={toggleShowIcons}>
+          <Shapes size={17} />
         </button>
       </Tooltip>
       <Tooltip label="Fit to View (F)">

@@ -55,6 +55,7 @@ interface Props {
   onSnapGuideChange: (guides: SnapGuides) => void;
   zoomScale: number; // current stage zoom (cam.scale)
   showAllLabels: boolean;
+  showIcons: boolean;
   /** Design Mode resizes furniture, and moves/rotates it directly only when
    * the Free Move tool is active (the Move/Rotate tools use a dedicated
    * gizmo instead); Inventory Mode opens it instead. */
@@ -80,6 +81,7 @@ export default function ObjectNode({
   onSnapGuideChange,
   zoomScale,
   showAllLabels,
+  showIcons,
   mode,
   objectTool,
   registerNode,
@@ -105,11 +107,15 @@ export default function ObjectNode({
   // small readable floor rather than wrapping down to one letter per line.
   const labelW = Math.max(w * zoomScale - LABEL_PAD * 2, LABEL_MIN_W);
   const labelLines = wrappedLineCount(obj.name, labelW, LABEL_FONT_SIZE);
-  const labelTextH = labelLines * LABEL_LINE_H;
-  // Label + (in Inventory Mode) its storage-type icon are centered on the
-  // object as one vertical block, so the block's total height determines how
-  // far above center the text starts.
-  const labelBlockH = labelTextH + (mode === 'inventory' ? ICON_GAP + ICON_H : 0);
+  // Text and icon are two independently toggleable pieces of one block that's
+  // always centered on the object as a whole — each piece only contributes to
+  // the block's height (and thus to where the other piece lands) while its
+  // own toggle is on, so turning either off re-centers what's left rather
+  // than leaving a gap where it used to be.
+  const textH = showAllLabels ? labelLines * LABEL_LINE_H : 0;
+  const iconH = showIcons ? ICON_H : 0;
+  const textIconGap = showAllLabels && showIcons ? ICON_GAP : 0;
+  const labelBlockH = textH + textIconGap + iconH;
 
   useEffect(() => {
     registerNode(obj.id, groupRef.current);
@@ -320,38 +326,37 @@ export default function ObjectNode({
 
       </Group>
 
-      {/* Floating name label: centered on the object itself — name, then (in
-          Inventory Mode) its storage-type icon, stacked as one block centered
-          on the object's center point — counter-scaled so it stays a
-          constant, readable screen size at any zoom. Hidden entirely via the
-          Labels toolbar toggle. */}
-      {showAllLabels && (
+      {/* Floating name label + storage-type icon: independently toggleable
+          (Labels / Icons toolbar buttons) but always stacked and centered as
+          one block on the object's own center point — counter-scaled so it
+          stays a constant, readable screen size at any zoom. */}
+      {labelBlockH > 0 && (
         <Group x={centerX} y={centerY} scaleX={counterScale} scaleY={counterScale} listening={false}>
-          <Text
-            x={-labelW / 2}
-            y={-labelBlockH / 2}
-            width={labelW}
-            height={labelTextH}
-            align="center"
-            verticalAlign="top"
-            text={obj.name}
-            fontSize={LABEL_FONT_SIZE}
-            lineHeight={1.2}
-            fontFamily="Inter, sans-serif"
-            fontStyle="600"
-            fill="#eef1f7"
-            shadowColor="black"
-            shadowBlur={6}
-            shadowOpacity={0.8}
-            wrap="word"
-          />
+          {showAllLabels && (
+            <Text
+              x={-labelW / 2}
+              y={-labelBlockH / 2}
+              width={labelW}
+              height={textH}
+              align="center"
+              verticalAlign="top"
+              text={obj.name}
+              fontSize={LABEL_FONT_SIZE}
+              lineHeight={1.2}
+              fontFamily="Inter, sans-serif"
+              fontStyle="600"
+              fill="#eef1f7"
+              shadowColor="black"
+              shadowBlur={6}
+              shadowOpacity={0.8}
+              wrap="word"
+            />
+          )}
 
-          {/* Inventory Mode: a small glyph identifying the storage character
-              (shelf/drawer/container) or, for a plain surface object, "table" —
-              replaces the old corner badge so it reads clearly at the label's
-              fixed on-screen size regardless of zoom. */}
-          {mode === 'inventory' && (
-            <Group x={-ICON_W / 2} y={-labelBlockH / 2 + labelTextH + ICON_GAP}>
+          {/* A small glyph identifying the storage character (shelf/drawer/
+              container) or, for a plain surface object, "table". */}
+          {showIcons && (
+            <Group x={-ICON_W / 2} y={-labelBlockH / 2 + textH + textIconGap}>
               <Rect
                 width={ICON_W}
                 height={ICON_H}

@@ -142,6 +142,9 @@ export interface Settings {
    * persisted state (from before this setting existed) still loads cleanly —
    * treat a missing value as "on". */
   showAllLabels?: boolean;
+  /** Toggle every object's floating storage-type icon on/off, independent of
+   * the name label. Optional for the same reason as `showAllLabels`. */
+  showIcons?: boolean;
   /** Default thickness (inches) applied to newly-drawn walls. */
   wallThickness: number;
   mode: AppMode;
