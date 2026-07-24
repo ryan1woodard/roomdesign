@@ -238,7 +238,7 @@ interface AppState extends Doc {
    * validated the rectangle (see `rectFromSelection` in lib/shelf.ts); any
    * items living in cells absorbed by the merge are reassigned to the new
    * anchor key so nothing is orphaned. */
-  mergeCells: (id: string, rowStart: number, rowEnd: number, colStart: number, colEnd: number, name?: string) => void;
+  mergeCells: (id: string, rowStart: number, rowEnd: number, colStart: number, colEnd: number) => void;
   openShelfEditor: (id: string | null) => void;
 
   // Selection & clipboard
@@ -929,7 +929,7 @@ export const useStore = create<AppState>()(
             return { ...room, objects: { ...room.objects, [id]: { ...cur, storage } } };
           }),
         ),
-      mergeCells: (id, rowStart, rowEnd, colStart, colEnd, name) =>
+      mergeCells: (id, rowStart, rowEnd, colStart, colEnd) =>
         set((s) =>
           mutateActiveRoom(s, 'merge-cells:' + id, (room) => {
             const obj = room.objects[id];
@@ -952,12 +952,14 @@ export const useStore = create<AppState>()(
             }
             nextMerges[anchorKey] = { rowSpan, colSpan };
 
+            // Display names are always derived from position (see
+            // `cellName()`), so merged cells only need to keep a `kind`.
             const prevMeta = storage.cells[anchorKey];
             const nextCells: Record<string, CellMeta> = { ...storage.cells };
             for (const key of absorbed) {
               if (key !== anchorKey) delete nextCells[key];
             }
-            nextCells[anchorKey] = { name: name?.trim() || prevMeta?.name || 'Merged', kind: prevMeta?.kind ?? 'shelf' };
+            nextCells[anchorKey] = { kind: prevMeta?.kind ?? 'shelf' };
 
             const nextStorage: Storage = { ...storage, merges: nextMerges, cells: nextCells };
 

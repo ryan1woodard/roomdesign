@@ -280,6 +280,11 @@
   padding: 5px;
   border-radius: var(--r-lg);
 }
+/* The tooltip wrapper sits between the panel and each button now — keep it
+   from collapsing the buttons back to content width. */
+.mode-switch-panel .tooltip-wrap {
+  flex: 1;
+}
 .mode-switch-btn {
   flex: 1;
   display: flex;
@@ -635,6 +640,15 @@
 .cell-edit .field {
   flex: 1 1 120px;
   min-width: 0;
+}
+.cell-edit-label {
+  flex: 1 1 120px;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-1);
 }
 .seg {
   display: flex;

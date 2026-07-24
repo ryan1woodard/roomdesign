@@ -8,10 +8,62 @@ import { objectBBox, snapTranslate, type SnapLines, type SnapGuides, NO_SNAP_GUI
 
 const LABEL_MIN_W = 60; // px, floor so labels on very narrow objects stay legible
 const LABEL_PAD = 6; // px, horizontal padding keeping wrapped text off the object's edges
-const LABEL_H = 48; // px, tall enough for a wrapped label to run to 3 lines before Konva starts clipping it
-const ICON_GAP = 4; // px, screen-space gap between label text and the storage-type icon below it
+const LABEL_GAP = 8; // px, screen-space gap between the object's bottom edge and its label
+const LABEL_FONT_SIZE = 12;
+const LABEL_LINE_H = 15; // px, measured line height at LABEL_FONT_SIZE/600 weight
+const ICON_GAP = 6; // px, screen-space gap between the label's last line and the storage-type icon below it
 const ICON_W = 24;
 const ICON_H = 17;
+
+/** Topmost/bottommost screen-space Y of a rotated object's bounding box,
+ * relative to its own center — used to anchor the label just past the
+ * object's actual (rotation-aware) lower edge instead of its unrotated one. */
+function rotatedBottomOffset(width: number, height: number, rotationDeg: number): number {
+  const rad = (rotationDeg * Math.PI) / 180;
+  const hw = width / 2;
+  const hh = height / 2;
+  const corners = [
+    [-hw, -hh],
+    [hw, -hh],
+    [hw, hh],
+    [-hw, hh],
+  ];
+  let maxY = -Infinity;
+  for (const [x, y] of corners) {
+    const ry = x * Math.sin(rad) + y * Math.cos(rad);
+    if (ry > maxY) maxY = ry;
+  }
+  return maxY;
+}
+
+// Shared, lazily-created canvas context used only to measure text — lets us
+// compute how many lines a wrapped label will occupy synchronously during
+// render (matching Konva's own greedy word-wrap closely enough for line
+// counting), so the storage-type icon can sit a fixed gap below the label's
+// actual last line instead of a worst-case reserved block that leaves an
+// awkward gap under short, single-line names.
+let measureCtx: CanvasRenderingContext2D | null = null;
+function wrappedLineCount(text: string, maxWidth: number, fontSize: number): number {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0 || maxWidth <= 0) return 1;
+  if (!measureCtx) measureCtx = document.createElement('canvas').getContext('2d');
+  if (!measureCtx) return 1;
+  measureCtx.font = `600 ${fontSize}px Inter, sans-serif`;
+  const spaceWidth = measureCtx.measureText(' ').width;
+  let lines = 1;
+  let lineWidth = 0;
+  for (const word of words) {
+    const wordWidth = measureCtx.measureText(word).width;
+    const nextWidth = lineWidth === 0 ? wordWidth : lineWidth + spaceWidth + wordWidth;
+    if (nextWidth > maxWidth && lineWidth > 0) {
+      lines += 1;
+      lineWidth = wordWidth;
+    } else {
+      lineWidth = nextWidth;
+    }
+  }
+  return lines;
+}
 
 interface Props {
   obj: RoomObject;
@@ -74,6 +126,9 @@ export default function ObjectNode({
   // its unzoomed world-space width. Very narrow/zoomed-out objects get a
   // small readable floor rather than wrapping down to one letter per line.
   const labelW = Math.max(w * zoomScale - LABEL_PAD * 2, LABEL_MIN_W);
+  const labelLines = wrappedLineCount(obj.name, labelW, LABEL_FONT_SIZE);
+  const labelTextH = labelLines * LABEL_LINE_H;
+  const bottomOffset = rotatedBottomOffset(w, h, obj.rotation);
 
   useEffect(() => {
     registerNode(obj.id, groupRef.current);
@@ -284,22 +339,22 @@ export default function ObjectNode({
 
       </Group>
 
-      {/* Floating name label: centered on the object regardless of rotation,
-          counter-scaled so it stays a constant, readable screen size at any
-          zoom. Overlapping labels on crowded objects are expected and
-          intentional — legibility of "which object is which" wins over
-          avoiding overlap. Hidden entirely via the Labels toolbar toggle. */}
+      {/* Floating name label: anchored just below the object's own (rotation-
+          aware) lower edge — object, then name, then (in Inventory Mode) its
+          storage-type icon, top to bottom — counter-scaled so it stays a
+          constant, readable screen size at any zoom. Hidden entirely via the
+          Labels toolbar toggle. */}
       {showAllLabels && (
-        <Group x={centerX} y={centerY} scaleX={counterScale} scaleY={counterScale} listening={false}>
+        <Group x={centerX} y={centerY + bottomOffset} scaleX={counterScale} scaleY={counterScale} listening={false}>
           <Text
             x={-labelW / 2}
-            y={-LABEL_H / 2}
+            y={LABEL_GAP}
             width={labelW}
-            height={LABEL_H}
+            height={labelTextH}
             align="center"
-            verticalAlign="middle"
+            verticalAlign="top"
             text={obj.name}
-            fontSize={12}
+            fontSize={LABEL_FONT_SIZE}
             lineHeight={1.2}
             fontFamily="Inter, sans-serif"
             fontStyle="600"
@@ -315,7 +370,7 @@ export default function ObjectNode({
               replaces the old corner badge so it reads clearly at the label's
               fixed on-screen size regardless of zoom. */}
           {mode === 'inventory' && (
-            <Group x={-ICON_W / 2} y={LABEL_H / 2 + ICON_GAP}>
+            <Group x={-ICON_W / 2} y={LABEL_GAP + labelTextH + ICON_GAP}>
               <Rect
                 width={ICON_W}
                 height={ICON_H}

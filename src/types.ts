@@ -52,7 +52,12 @@ export type Storage =
     };
 
 export interface CellMeta {
-  name: string;
+  /** No longer read anywhere — compartment display names are always derived
+   * from current position (see `cellName()` in lib/shelf.ts) so they stay
+   * correct after every layout change. Kept optional only so older
+   * persisted/imported rooms with a stored name still parse without a
+   * migration step. */
+  name?: string;
   kind: 'shelf' | 'drawer';
 }
 

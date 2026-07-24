@@ -14,6 +14,7 @@ export default function LayersPanel() {
   const reorderLayer = useStore((s) => s.reorderLayer);
   const deleteLayer = useStore((s) => s.deleteLayer);
   const setActiveLayer = useStore((s) => s.setActiveLayer);
+  const isDesign = useStore((s) => s.settings.mode === 'design');
   const [collapsed, setCollapsed] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
 
@@ -26,16 +27,18 @@ export default function LayersPanel() {
         {collapsed ? <ChevronRight size={13} className="panel-chevron" /> : <ChevronDown size={13} className="panel-chevron" />}
         <Layers size={14} />
         <span>Layers</span>
-        <button
-          className="btn icon"
-          style={{ marginLeft: 'auto' }}
-          onClick={(e) => {
-            e.stopPropagation();
-            addLayer();
-          }}
-        >
-          <Plus size={15} />
-        </button>
+        {isDesign && (
+          <button
+            className="btn icon"
+            style={{ marginLeft: 'auto' }}
+            onClick={(e) => {
+              e.stopPropagation();
+              addLayer();
+            }}
+          >
+            <Plus size={15} />
+          </button>
+        )}
       </div>
 
       {!collapsed && (
@@ -80,6 +83,7 @@ export default function LayersPanel() {
                   <span
                     className="layer-name"
                     onDoubleClick={(e) => {
+                      if (!isDesign) return;
                       e.stopPropagation();
                       setEditing(l.id);
                     }}
@@ -88,48 +92,50 @@ export default function LayersPanel() {
                     <span className="layer-count">{countFor(l.id)}</span>
                   </span>
                 )}
-                <div className="layer-actions">
-                  <button
-                    className="btn icon"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setEditing(l.id);
-                    }}
-                  >
-                    <Pencil size={13} />
-                  </button>
-                  <button
-                    className="btn icon"
-                    disabled={idx === layers.length - 1}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      reorderLayer(l.id, 1);
-                    }}
-                  >
-                    <ChevronUp size={13} />
-                  </button>
-                  <button
-                    className="btn icon"
-                    disabled={idx === 0}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      reorderLayer(l.id, -1);
-                    }}
-                  >
-                    <ChevronDown size={13} />
-                  </button>
-                  {l.kind === 'object' && objectLayerCount > 1 && (
+                {isDesign && (
+                  <div className="layer-actions">
                     <button
-                      className="btn icon danger"
+                      className="btn icon"
                       onClick={(e) => {
                         e.stopPropagation();
-                        deleteLayer(l.id);
+                        setEditing(l.id);
                       }}
                     >
-                      <Trash2 size={13} />
+                      <Pencil size={13} />
                     </button>
-                  )}
-                </div>
+                    <button
+                      className="btn icon"
+                      disabled={idx === layers.length - 1}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        reorderLayer(l.id, 1);
+                      }}
+                    >
+                      <ChevronUp size={13} />
+                    </button>
+                    <button
+                      className="btn icon"
+                      disabled={idx === 0}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        reorderLayer(l.id, -1);
+                      }}
+                    >
+                      <ChevronDown size={13} />
+                    </button>
+                    {l.kind === 'object' && objectLayerCount > 1 && (
+                      <button
+                        className="btn icon danger"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteLayer(l.id);
+                        }}
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })}

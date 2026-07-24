@@ -109,10 +109,18 @@ export function resolveCellKey(storage: Storage, key: string): string {
   return buildCoverage(storage).get(key) ?? key;
 }
 
+/** Every compartment's display name is its 1-based position among the
+ * object's current *visible* compartments — left to right, top to bottom,
+ * with a merged block counting as a single number — computed fresh from
+ * `gridCells()` every time rather than read from stored data, so it can
+ * never go stale after adding/removing rows or columns, merging, or
+ * unmerging. There is deliberately no way to override it: the number always
+ * reflects the current layout, never a preserved historical label. */
 export function cellName(obj: RoomObject, key: string): string {
   if (obj.storage.type === 'single') return obj.name;
   const anchor = resolveCellKey(obj.storage, key);
-  return obj.storage.cells[anchor]?.name ?? anchor;
+  const idx = gridCells(obj.storage).findIndex((c) => c.key === anchor);
+  return String(idx >= 0 ? idx + 1 : 1);
 }
 
 export function cellKind(obj: RoomObject, key: string): 'shelf' | 'drawer' | 'surface' {

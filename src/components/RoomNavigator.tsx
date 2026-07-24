@@ -90,7 +90,7 @@ export default function RoomNavigator() {
                 importInputRef.current?.click();
               }}
             >
-              <Upload size={15} />
+              <Download size={15} />
             </button>
             <input
               ref={importInputRef}
@@ -174,7 +174,7 @@ export default function RoomNavigator() {
                                 pushToast('success', `Room exported as "${r.name}.json"`);
                               }}
                             >
-                              <Download size={12} />
+                              <Upload size={12} />
                             </button>
                             {roomOrder.length > 1 && (
                               <button

@@ -88,7 +88,7 @@ export default function Toolbar() {
             </Tooltip>
           ))}
           <div className="divider-v" />
-          <Tooltip label="Grab">
+          <Tooltip label="Grab (G)">
             <button
               className={`btn icon ${objectTool === 'freeMove' ? 'active' : ''}`}
               onClick={() => setObjectTool(objectTool === 'freeMove' ? 'select' : 'freeMove')}
@@ -96,7 +96,7 @@ export default function Toolbar() {
               <Hand size={17} />
             </button>
           </Tooltip>
-          <Tooltip label="Move">
+          <Tooltip label="Move (M)">
             <button
               className={`btn icon ${objectTool === 'move' ? 'active' : ''}`}
               onClick={() => setObjectTool(objectTool === 'move' ? 'select' : 'move')}
@@ -104,7 +104,7 @@ export default function Toolbar() {
               <Move size={17} />
             </button>
           </Tooltip>
-          <Tooltip label="Rotate">
+          <Tooltip label="Rotate (R)">
             <button
               className={`btn icon ${objectTool === 'rotate' ? 'active' : ''}`}
               onClick={() => setObjectTool(objectTool === 'rotate' ? 'select' : 'rotate')}
@@ -117,12 +117,12 @@ export default function Toolbar() {
 
       <div className="divider-v" />
 
-      <Tooltip label="Undo">
+      <Tooltip label="Undo (Ctrl+Z)">
         <button className="btn icon" disabled={!canUndo} style={{ opacity: canUndo ? 1 : 0.3 }} onClick={undo}>
           <Undo2 size={17} />
         </button>
       </Tooltip>
-      <Tooltip label="Redo">
+      <Tooltip label="Redo (Ctrl+Shift+Z)">
         <button className="btn icon" disabled={!canRedo} style={{ opacity: canRedo ? 1 : 0.3 }} onClick={redo}>
           <Redo2 size={17} />
         </button>
@@ -135,7 +135,7 @@ export default function Toolbar() {
           <Tags size={17} />
         </button>
       </Tooltip>
-      <Tooltip label="Fit to View">
+      <Tooltip label="Fit to View (F)">
         <button className="btn icon" onClick={requestFitToView}>
           <Maximize size={17} />
         </button>

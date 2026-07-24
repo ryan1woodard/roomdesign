@@ -17,15 +17,15 @@ function normalizeReadable(arr: number[]): number[] {
   return arr.map((v) => v / sum);
 }
 
-/** Build/repair the per-cell metadata map for a given grid size. */
+/** Build/repair the per-cell metadata map for a given grid size. Display
+ * names are always derived from position (see `cellName()`), so new cells
+ * only need a default `kind`. */
 function rebuildCells(rows: number, cols: number, prev: Record<string, CellMeta>): Record<string, CellMeta> {
   const cells: Record<string, CellMeta> = {};
-  let n = 1;
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       const key = `${r}:${c}`;
-      cells[key] = prev[key] ?? { name: `Bin ${n}`, kind: 'drawer' };
-      n++;
+      cells[key] = prev[key] ?? { kind: 'drawer' };
     }
   }
   return cells;
@@ -197,6 +197,7 @@ export default function ShelfLayoutModal() {
   const singleKey = selArr.length === 1 ? selArr[0] : null;
   const singleMeta = singleKey ? storage.cells[singleKey] : null;
   const singleRect = singleKey ? cells.find((c) => c.key === singleKey) : null;
+  const singleNumber = singleRect ? cells.indexOf(singleRect) + 1 : null;
   const isMergedSingle = !!singleRect && (singleRect.rowSpan > 1 || singleRect.colSpan > 1);
   const mergeRect = selArr.length >= 2 ? rectFromSelection(storage, selArr) : null;
 
@@ -222,16 +223,15 @@ export default function ShelfLayoutModal() {
     delete nextMerges[singleKey];
 
     // Cells absorbed by the merge had their metadata deleted; give any that
-    // are reappearing without a name a sensible default instead of blank.
+    // are reappearing a default kind (display names are always derived from
+    // position, so no name needs restoring here).
     const nextCells = { ...storage.cells };
     if (span) {
       const [ar, ac] = singleKey.split(':').map(Number);
-      let n = 1;
       for (let r = ar; r < ar + span.rowSpan; r++) {
         for (let c = ac; c < ac + span.colSpan; c++) {
           const key = `${r}:${c}`;
-          if (key !== singleKey && !nextCells[key]) nextCells[key] = { name: `Bin ${n}`, kind: 'drawer' };
-          n++;
+          if (key !== singleKey && !nextCells[key]) nextCells[key] = { kind: 'drawer' };
         }
       }
     }
@@ -289,7 +289,7 @@ export default function ShelfLayoutModal() {
             </div>
 
             <div className="shelf-preview shelf-preview-lg" ref={boxRef} onMouseDown={clearSelection}>
-              {cells.map((c) => {
+              {cells.map((c, i) => {
                 const meta = storage.cells[c.key];
                 const dense = storage.rows * storage.cols > 120;
                 return (
@@ -304,7 +304,11 @@ export default function ShelfLayoutModal() {
                     }}
                     onMouseDown={(e) => handleCellMouseDown(e, c)}
                   >
-                    {!dense && <span>{meta?.name ?? c.key}</span>}
+                    {/* Compartment numbers are always the cell's 1-based position
+                        among currently-visible compartments — never a stored,
+                        manually-set name — so they stay correct after any
+                        row/column/merge change with no user action needed. */}
+                    {!dense && <span>{i + 1}</span>}
                   </div>
                 );
               })}
@@ -337,11 +341,10 @@ export default function ShelfLayoutModal() {
             <div className="shelf-modal-footer">
               {singleKey && singleMeta ? (
                 <div className="cell-edit">
-                  <input
-                    className="field"
-                    value={singleMeta.name}
-                    onChange={(e) => commit({ ...storage, cells: { ...storage.cells, [singleKey]: { ...singleMeta, name: e.target.value } } })}
-                  />
+                  {/* Compartment numbers are always auto-generated from position
+                      (see cellName() in lib/shelf.ts) — never user-editable —
+                      so they can never drift out of sync after a layout change. */}
+                  <span className="cell-edit-label">Compartment {singleNumber}</span>
                   <div className="seg">
                     <button
                       className={singleMeta.kind === 'drawer' ? 'active' : ''}

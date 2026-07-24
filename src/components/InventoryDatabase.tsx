@@ -173,7 +173,7 @@ export default function InventoryDatabase() {
                 <Plus size={14} /> Add item
               </button>
               <button className="btn icon" onClick={() => importInputRef.current?.click()} title="Import CSV">
-                <Upload size={15} />
+                <Download size={15} />
               </button>
               <input
                 ref={importInputRef}
@@ -183,7 +183,7 @@ export default function InventoryDatabase() {
                 onChange={handleImportFile}
               />
               <button className="btn icon" onClick={handleExport} title="Export CSV">
-                <Download size={15} />
+                <Upload size={15} />
               </button>
             </div>
 

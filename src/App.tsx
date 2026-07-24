@@ -81,6 +81,7 @@ export default function App() {
   const removeOpening = useStore((s) => s.removeOpening);
 
   const mode = useStore((s) => s.settings.mode);
+  const setMode = useStore((s) => s.setMode);
   const room = useActiveRoom();
   const activeLayer = room?.layers.find((l) => l.id === room.activeLayerId);
   const isWallMode = mode === 'design' && activeLayer?.kind === 'wall';
@@ -126,12 +127,18 @@ export default function App() {
         requestFitToView();
       } else if (mode === 'design' && !isWallMode && !mod && e.key.toLowerCase() === 'g') {
         setObjectTool('freeMove');
+      } else if (mode === 'design' && !isWallMode && !mod && e.key.toLowerCase() === 'm') {
+        setObjectTool('move');
       } else if (mode === 'design' && !isWallMode && !mod && e.key.toLowerCase() === 'r') {
         setObjectTool('rotate');
       } else if (mode === 'design' && !isWallMode && !mod && e.key.toLowerCase() === 's') {
         // No dedicated Scale tool yet — Select is the closest equivalent,
         // since its resize handles are how objects are scaled today.
         setObjectTool('select');
+      } else if (!mod && e.key.toLowerCase() === 'd') {
+        setMode('design');
+      } else if (!mod && e.key.toLowerCase() === 'i') {
+        setMode('inventory');
       } else if (mode === 'design' && (e.key === 'Delete' || e.key === 'Backspace')) {
         if (wallSelection) {
           e.preventDefault();
@@ -180,6 +187,7 @@ export default function App() {
     setObjectTool,
     room,
     mode,
+    setMode,
   ]);
 
   if (!hydrated) return <LoadingScreen />;
@@ -198,7 +206,7 @@ export default function App() {
         <div className="left-rail">
           <ModeSwitch />
           <RoomNavigator />
-          {mode === 'design' && <LayersPanel />}
+          <LayersPanel />
         </div>
         {isWallMode ? <WallInspector /> : <Inspector />}
       </div>
