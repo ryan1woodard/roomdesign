@@ -208,7 +208,7 @@ export default function App() {
       <div className="ui-layer">
         <div className="top-bar">
           <Toolbar />
-          <SearchBar />
+          {mode === 'inventory' && <SearchBar />}
           <UserMenu />
         </div>
         <div className="left-rail">

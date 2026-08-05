@@ -1,4 +1,4 @@
-# SRS Lab Designer
+# SRS Inventory
 
 A **room designer with an integrated visual inventory system**. The room is the
 primary interface — inventory lives *inside* the furniture, shelves, and drawers
@@ -142,7 +142,7 @@ or the machine reboots. For real use put it under a process manager:
 ```ini
 # /etc/systemd/system/srs-lab-designer.service
 [Unit]
-Description=SRS Lab Designer
+Description=SRS Inventory
 After=network.target
 
 [Service]

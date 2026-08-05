@@ -66,8 +66,7 @@ export default function Toolbar() {
   return (
     <div className="toolbar glass">
       <div className="brand">
-        <span className="brand-mark">◆</span>
-        <span className="brand-name">SRS Lab Designer</span>
+        <span className="brand-name">SRS Inventory</span>
       </div>
       <SaveIndicator />
       {mode !== 'inventory' && <div className="divider-v" />}

@@ -145,7 +145,7 @@ const pruneTimer = setInterval(
 pruneTimer.unref();
 
 const server = app.listen(PORT, HOST, () => {
-  console.log(`SRS Lab Designer server listening on http://${HOST}:${PORT}`);
+  console.log(`SRS Inventory server listening on http://${HOST}:${PORT}`);
   console.log(`  data: ${path.join(DATA_DIR, 'app.db')}`);
   if (!fs.existsSync(DIST_DIR)) console.warn('  WARNING: dist/ not found — run `npm run build`');
 });

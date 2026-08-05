@@ -205,13 +205,13 @@ export function parseRoomFile(text: string): RoomFilePayload {
     throw new Error("That file isn't a room design export.");
   }
   if (data.fileFormat !== ROOM_FILE_FORMAT) {
-    throw new Error("That file isn't a room design export from SRS Lab Designer.");
+    throw new Error("That file isn't a room design export from SRS Inventory.");
   }
   if (!isFiniteNumber(data.fileVersion) || data.fileVersion < 1) {
     throw new Error("That room design file has an invalid or missing version number.");
   }
   if (data.fileVersion > ROOM_FILE_VERSION) {
-    throw new Error("That file was exported by a newer version of SRS Lab Designer — update the app to import it.");
+    throw new Error("That file was exported by a newer version of SRS Inventory — update the app to import it.");
   }
   if (typeof data.name !== 'string' || !data.name.trim()) {
     throw new Error("That room design file is missing a room name.");
