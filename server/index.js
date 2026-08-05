@@ -3,9 +3,26 @@ import compression from 'compression';
 import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { openDatabase, createStore, createLogStore } from './db.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// db.js imports node:sqlite, which only exists from Node 22.5.0 onward. A
+// static `import` of db.js would throw Node's own cryptic
+// ERR_UNKNOWN_BUILTIN_MODULE before any of our code got to run — this
+// check runs first and fails with an actionable message instead, and the
+// dynamic import() below is what lets that ordering hold.
+const [major, minor] = process.versions.node.split('.').map(Number);
+if (major < 22 || (major === 22 && minor < 5)) {
+  console.error(
+    `\nThis server requires Node.js 22.5.0 or newer (for the built-in node:sqlite module).\n` +
+      `You're running Node ${process.versions.node}.\n\n` +
+      `Upgrade Node — e.g. with nvm:\n  nvm install 22\n  nvm use 22\n` +
+      `or download the latest LTS from https://nodejs.org — then try again.\n`,
+  );
+  process.exit(1);
+}
+
+const { openDatabase, createStore, createLogStore } = await import('./db.js');
 
 const PORT = Number(process.env.PORT) || 8080;
 const HOST = process.env.HOST || '0.0.0.0';

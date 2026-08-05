@@ -4,6 +4,9 @@
   "version": "0.2.0",
   "type": "module",
   "description": "SRS Inventory — a room designer with an integrated visual inventory system",
+  "engines": {
+    "node": ">=22.5.0"
+  },
   "scripts": {
     "dev": "concurrently -n server,vite -c cyan,magenta \"npm:dev:server\" \"npm:dev:web\"",
     "dev:server": "node server/index.js",

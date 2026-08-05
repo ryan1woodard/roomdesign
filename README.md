@@ -84,6 +84,11 @@ points a browser at. All rooms, furniture, inventory, tags, checkouts and the
 activity log live on that server, so every person sees and edits the same
 data — there is no per-browser copy.
 
+**Requires Node.js 22.5.0 or newer** — the server stores everything in
+SQLite via Node's built-in `node:sqlite` module, which doesn't exist before
+that version. `node --version` to check; if it's older, upgrade (`nvm install 22`
+or grab the latest LTS from nodejs.org) before continuing.
+
 ```bash
 npm install
 npm run build     # compile the front-end into dist/
