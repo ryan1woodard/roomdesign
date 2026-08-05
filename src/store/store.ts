@@ -39,6 +39,15 @@ import {
 } from '../lib/walls';
 import { cellName, MAX_GRID_SIZE } from '../lib/shelf';
 import type { RoomFilePayload } from '../lib/roomFile';
+import { applyOps, diffState, type EntityOp, type SharedState } from '../lib/entities';
+import {
+  queueOps,
+  setSyncAuthor,
+  startSync as startServerSync,
+  flushBeforeUnload,
+  flushNow,
+  onSyncStatus,
+} from '../lib/serverSync';
 
 localforage.config({ name: 'srs-lab-designer', storeName: 'state' });
 
@@ -86,16 +95,17 @@ export const useToastStore = create<{
   dismiss: (id) => set((s) => ({ toasts: s.toasts.filter((t) => t.id !== id) })),
 }));
 
+/**
+ * Local storage now holds only this device's preferences (units, mode,
+ * label toggles, who's signed in here, and where each room's camera was
+ * left). The project itself lives on the server — see `lib/serverSync.ts`.
+ * Because these writes are tiny and never at risk of being lost work, the
+ * save indicator is no longer driven from here; it reflects server sync.
+ */
 const lfStorage = {
   getItem: async (name: string) => (await localforage.getItem<string>(name)) ?? null,
   setItem: async (name: string, value: string) => {
-    useSaveStore.setState({ saveStatus: 'saving' });
-    try {
-      await localforage.setItem(name, value);
-      useSaveStore.setState({ saveStatus: 'saved', lastSavedAt: Date.now(), saveError: null });
-    } catch (err) {
-      useSaveStore.setState({ saveStatus: 'error', saveError: err instanceof Error ? err.message : String(err) });
-    }
+    await localforage.setItem(name, value);
   },
   removeItem: async (name: string) => {
     await localforage.removeItem(name);
@@ -109,18 +119,55 @@ interface Doc {
   checkouts: Record<string, Checkout>;
 }
 
+/** Where a given room was last left on *this* screen. Deliberately not part
+ * of the shared project: syncing it would mean one person panning or
+ * switching layers would drag everyone else's view along with them. */
+export interface RoomView {
+  camera: CameraState;
+  activeLayerId: string;
+}
+
 /**
- * Everything written to durable storage (the main IndexedDB key and every
- * recovery snapshot). Kept as one named shape so both write sites and the
- * restore path can't silently drift apart from each other.
+ * What this device keeps locally. The project (rooms, furniture, inventory,
+ * tags, checkouts, activity log) is NOT here — the server owns it, so every
+ * browser pointed at the same server sees the same data. Only per-person
+ * preferences and view state survive in the browser.
  */
-interface PersistedState extends Doc {
+interface PersistedState {
   activeRoomId: string;
   settings: Settings;
   currentUser: User | null;
-  knownUsers: User[];
-  projectMeta: ProjectMeta;
-  activityLog: LogEntry[];
+  roomViews: Record<string, RoomView>;
+}
+
+/**
+ * One undoable step, stored as the entity changes it made plus their
+ * inverse.
+ *
+ * Recording *what this person changed* rather than a snapshot of the whole
+ * project is what makes undo safe on a shared server: pressing Ctrl+Z
+ * rewinds only the entities you touched, and can never roll back a
+ * co-worker's unrelated edit the way a whole-document snapshot would.
+ */
+export interface HistoryEntry {
+  key: string;
+  /** Ops that re-apply this step. */
+  redo: EntityOp[];
+  /** Ops that reverse it. */
+  undo: EntityOp[];
+}
+
+/** Pulls the server-shared slice out of the full app state. */
+export function sharedOf(s: SharedState): SharedState {
+  return {
+    rooms: s.rooms,
+    roomOrder: s.roomOrder,
+    tags: s.tags,
+    checkouts: s.checkouts,
+    activityLog: s.activityLog,
+    projectMeta: s.projectMeta,
+    knownUsers: s.knownUsers,
+  };
 }
 
 export type WallTool = 'select' | 'draw' | 'door' | 'window';
@@ -178,12 +225,19 @@ interface AppState extends Doc {
   objectTool: ObjectTool;
   fitToViewToken: number;
 
-  // History (not persisted)
-  past: Doc[];
-  future: Doc[];
+  // History (not persisted, and deliberately per-person — see HistoryEntry)
+  past: HistoryEntry[];
+  future: HistoryEntry[];
   _histAt: number;
   _histKey: string;
+  /** Whether the mutation currently landing should fold into the previous
+   *  history entry rather than starting a new one. */
+  _histCoalesce: boolean;
   _rev: number;
+  /** True once the project has been loaded from (or seeded to) the server. */
+  syncReady: boolean;
+  /** This device's saved camera/active-layer per room. */
+  roomViews: Record<string, RoomView>;
 
   // Settings actions
   setUnit: (u: Settings['units']) => void;
@@ -314,25 +368,25 @@ interface AppState extends Doc {
   requestFitToView: () => void;
 }
 
-function snapshot(s: AppState): Doc {
-  return { rooms: s.rooms, roomOrder: s.roomOrder, tags: s.tags, checkouts: s.checkouts };
-}
-
 /**
- * Returns the state patch that records a history checkpoint. Rapid successive
- * mutations sharing a key within 500ms coalesce into a single undo step, so
- * a drag or a burst of typing becomes one entry automatically.
+ * Marks a mutation as a history checkpoint. Rapid successive mutations
+ * sharing a key within 500ms coalesce into a single undo step, so a drag or
+ * a burst of typing becomes one entry automatically.
+ *
+ * The actual undo/redo payload isn't built here — it can't be, since the new
+ * state doesn't exist yet. A subscriber (see `installSyncBridge`) diffs the
+ * before/after states once the mutation lands and records the entity-level
+ * changes plus their inverse. That subscriber is also what ships the change
+ * to the server, so every action gets both behaviours without any of the
+ * ~60 individual actions needing to know about either.
  */
 function withHistory(s: AppState, key: string): Partial<AppState> {
   const now = Date.now();
-  if (s._histKey === key && now - s._histAt < 500) {
-    return { _histAt: now, _rev: s._rev + 1 };
-  }
+  const coalesce = s._histKey === key && now - s._histAt < 500;
   return {
-    past: [...s.past, snapshot(s)].slice(-80),
-    future: [],
     _histAt: now,
     _histKey: key,
+    _histCoalesce: coalesce,
     _rev: s._rev + 1,
   };
 }
@@ -581,7 +635,15 @@ function roomFromImportedDesign(payload: RoomFilePayload): Room {
 export const useStore = create<AppState>()(
   persist(
     (set, get) => ({
-      ...buildDemo(),
+      // Starts empty on purpose: the server is the source of truth, so the
+      // project arrives from `/api/state` at startup rather than being
+      // invented locally. `buildDemo()` is now only used to seed a
+      // brand-new server (see the sync bootstrap at the bottom of this file).
+      rooms: {},
+      roomOrder: [],
+      activeRoomId: '',
+      tags: {},
+      checkouts: {},
       settings: {
         units: 'in',
         showAllLabels: true,
@@ -610,7 +672,6 @@ export const useStore = create<AppState>()(
       logSearch: '',
       logScopeFilter: 'all',
       inventoryDbOpen: false,
-      checkouts: {},
       myInventoryOpen: false,
 
       wallTool: 'select',
@@ -623,7 +684,10 @@ export const useStore = create<AppState>()(
       future: [],
       _histAt: 0,
       _histKey: '',
+      _histCoalesce: false,
       _rev: 0,
+      syncReady: false,
+      roomViews: {},
 
       setUnit: (units) => set((s) => ({ settings: { ...s.settings, units } })),
       toggleShowAllLabels: () => set((s) => ({ settings: { ...s.settings, showAllLabels: !(s.settings.showAllLabels ?? true) } })),
@@ -643,18 +707,32 @@ export const useStore = create<AppState>()(
           shelfEditObjectId: mode === 'inventory' ? null : s.shelfEditObjectId,
         })),
 
+      // The roster is shared project data now (so everyone signing in at the
+      // same server sees the same people, and attribution is consistent),
+      // while `currentUser` stays local — it's who is at *this* screen.
+      // `_rev` is bumped so the sync bridge ships the roster change;
+      // `_applyingHistory` keeps signing in out of the undo stack.
       loginUser: (name, email) =>
         set((s) => {
           const trimmedName = name.trim();
           const trimmedEmail = email.trim().toLowerCase();
           const existing = s.knownUsers.find((u) => u.email.toLowerCase() === trimmedEmail);
-          const user: User = existing ? { ...existing, name: trimmedName } : { id: `user-${nanoid(8)}`, name: trimmedName, email: trimmedEmail };
-          const knownUsers = [user, ...s.knownUsers.filter((u) => u.email.toLowerCase() !== trimmedEmail)].slice(0, 8);
-          return { currentUser: user, knownUsers };
+          const user: User = existing
+            ? { ...existing, name: trimmedName }
+            : { id: `user-${nanoid(8)}`, name: trimmedName, email: trimmedEmail };
+          const knownUsers = [user, ...s.knownUsers.filter((u) => u.email.toLowerCase() !== trimmedEmail)];
+          setSyncAuthor(user.id);
+          _applyingHistory = true;
+          return { currentUser: user, knownUsers, _rev: s._rev + 1 };
         }),
       logout: () => set({ currentUser: null }),
 
-      saveNow: () => set((s) => ({ _manualSaveNonce: s._manualSaveNonce + 1 })),
+      // Edits already stream to the server on their own; this just pushes any
+      // queued batch out immediately instead of waiting on the debounce.
+      saveNow: () => {
+        void flushNow();
+        set((s) => ({ _manualSaveNonce: s._manualSaveNonce + 1 }));
+      },
 
       openLogViewer: () => set({ logViewerOpen: true }),
       closeLogViewer: () => set({ logViewerOpen: false }),
@@ -1663,15 +1741,22 @@ export const useStore = create<AppState>()(
           };
         }),
 
+      // Undo/redo replay this person's own entity changes in reverse/forward.
+      // `_applyingHistory` stops the sync bridge from recording the replay as
+      // a brand-new history step, while still letting it ship the resulting
+      // change to the server like any other edit.
       undo: () =>
         set((s) => {
           if (!s.past.length) return {};
-          const prev = s.past[s.past.length - 1];
+          const entry = s.past[s.past.length - 1];
+          _applyingHistory = true;
           return {
-            ...prev,
+            ...applyOps(sharedOf(s), entry.undo),
             past: s.past.slice(0, -1),
-            future: [snapshot(s), ...s.future].slice(0, 80),
+            future: [entry, ...s.future].slice(0, 80),
             _histKey: '',
+            _histCoalesce: false,
+            _rev: s._rev + 1,
             selection: [],
             wallSelection: null,
           };
@@ -1679,12 +1764,15 @@ export const useStore = create<AppState>()(
       redo: () =>
         set((s) => {
           if (!s.future.length) return {};
-          const next = s.future[0];
+          const entry = s.future[0];
+          _applyingHistory = true;
           return {
-            ...next,
-            past: [...s.past, snapshot(s)].slice(-80),
+            ...applyOps(sharedOf(s), entry.redo),
+            past: [...s.past, entry].slice(-80),
             future: s.future.slice(1),
             _histKey: '',
+            _histCoalesce: false,
+            _rev: s._rev + 1,
             selection: [],
             wallSelection: null,
           };
@@ -1693,25 +1781,22 @@ export const useStore = create<AppState>()(
       requestFitToView: () => set({ fitToViewToken: Date.now() }),
     }),
     {
-      name: 'srs-lab-designer-doc',
-      version: 2,
+      name: 'srs-lab-designer-device',
+      version: 3,
       storage: createJSONStorage(() => lfStorage),
-      // Persist the full project + device state — everything a user would
-      // expect to survive a reload: rooms/walls/floors/furniture/inventory,
-      // settings (including mode), the device's remembered users, the
-      // activity log, and project metadata. Never transient UI or undo
-      // history — see the audit in PersistedState below.
+      // Only this device's own preferences and view state. The project
+      // itself is NOT persisted here — it lives on the server, so that a
+      // second browser (or a second person) opening the same address sees
+      // the same data rather than its own private copy.
       partialize: (s): PersistedState => ({
-        rooms: s.rooms,
-        roomOrder: s.roomOrder,
         activeRoomId: s.activeRoomId,
-        tags: s.tags,
-        checkouts: s.checkouts,
         settings: s.settings,
         currentUser: s.currentUser,
-        knownUsers: s.knownUsers,
-        projectMeta: s.projectMeta,
-        activityLog: s.activityLog,
+        // Derived on write so panning a room is enough to remember it,
+        // without every camera nudge having to update a second field.
+        roomViews: Object.fromEntries(
+          Object.entries(s.rooms).map(([id, r]) => [id, { camera: r.camera, activeLayerId: r.activeLayerId }]),
+        ),
       }),
     },
   ),
@@ -1721,15 +1806,138 @@ export function useActiveRoom(): Room {
   return useStore((s) => s.rooms[s.activeRoomId]);
 }
 
-// Flip the indicator to "unsaved" the instant a persisted-worthy mutation
-// happens (a `_rev` bump), so it never sits on a stale "saved" while the
-// persist middleware's async write to IndexedDB is still in flight. This
-// writes to the separate `useSaveStore`, never back into `useStore` — see
-// that store's definition for why that separation matters.
-let lastRevForSaveStatus = useStore.getState()._rev;
-useStore.subscribe((state) => {
-  if (state._rev !== lastRevForSaveStatus) {
-    lastRevForSaveStatus = state._rev;
-    if (useSaveStore.getState().saveStatus !== 'saving') useSaveStore.setState({ saveStatus: 'unsaved' });
+// ---------------------------------------------------------------------------
+// Sync bridge
+//
+// One subscriber turns every local mutation into (a) per-entity operations
+// for the server and (b) an undoable history step. Doing it here — rather
+// than inside each of the ~60 actions — is what keeps multi-user support
+// from leaking into the entire store.
+// ---------------------------------------------------------------------------
+
+/** Set while remote data is being folded in, so incoming changes are never
+ *  echoed back to the server or pushed onto this person's undo stack. */
+let _applyingRemote = false;
+/** Set while undo/redo replays ops: still synced, but not re-recorded. */
+let _applyingHistory = false;
+
+/** Merges ops from the same coalescing burst. `undo` keeps the *earliest*
+ *  value seen for an entity (that's how far back the step should rewind);
+ *  `redo` keeps the latest. */
+function mergeOps(existing: EntityOp[], incoming: EntityOp[], keep: 'first' | 'last'): EntityOp[] {
+  const byKey = new Map<string, EntityOp>();
+  for (const op of existing) byKey.set(`${op.kind}:${op.roomId ?? ''}:${op.id}`, op);
+  for (const op of incoming) {
+    const k = `${op.kind}:${op.roomId ?? ''}:${op.id}`;
+    if (keep === 'last' || !byKey.has(k)) byKey.set(k, op);
   }
+  return [...byKey.values()];
+}
+
+let lastShared = sharedOf(useStore.getState());
+
+useStore.subscribe((state, prev) => {
+  if (state._rev === prev._rev) return; // nothing document-worthy changed
+
+  const nextShared = sharedOf(state);
+  if (_applyingRemote) {
+    lastShared = nextShared;
+    _applyingRemote = false;
+    return;
+  }
+
+  const ops = diffState(lastShared, nextShared);
+  const inverse = diffState(nextShared, lastShared);
+  lastShared = nextShared;
+  if (ops.length === 0) return;
+
+  queueOps(ops);
+
+  if (_applyingHistory) {
+    _applyingHistory = false;
+    return;
+  }
+
+  const past = [...state.past];
+  const lastEntry = past[past.length - 1];
+  if (state._histCoalesce && lastEntry && lastEntry.key === state._histKey) {
+    past[past.length - 1] = {
+      key: lastEntry.key,
+      redo: mergeOps(lastEntry.redo, ops, 'last'),
+      undo: mergeOps(lastEntry.undo, inverse, 'first'),
+    };
+  } else {
+    past.push({ key: state._histKey, redo: ops, undo: inverse });
+  }
+
+  useStore.setState({ past: past.slice(-80), future: [] });
 });
+
+/** Folds server data into the store without echoing it back out. */
+function applyRemote(fn: (prev: SharedState) => SharedState) {
+  useStore.setState((s) => {
+    const next = fn(sharedOf(s));
+
+    // Reattach this device's saved camera/active layer to any room we're
+    // seeing for the first time, and make sure every room has a usable
+    // active layer even if it was created on someone else's screen.
+    const rooms: Record<string, Room> = { ...next.rooms };
+    for (const id of Object.keys(rooms)) {
+      const room = rooms[id];
+      const saved = s.roomViews[id];
+      const needsCamera = !s.rooms[id] && saved;
+      const needsLayer = !room.activeLayerId || !room.layers.some((l) => l.id === room.activeLayerId);
+      if (!needsCamera && !needsLayer) continue;
+      rooms[id] = {
+        ...room,
+        camera: needsCamera ? saved.camera : room.camera,
+        activeLayerId: needsLayer
+          ? (saved?.activeLayerId && room.layers.some((l) => l.id === saved.activeLayerId)
+              ? saved.activeLayerId
+              : (room.layers.find((l) => l.kind === 'object')?.id ?? room.layers[0]?.id ?? ''))
+          : room.activeLayerId,
+      };
+    }
+
+    const activeRoomId = rooms[s.activeRoomId] ? s.activeRoomId : (next.roomOrder[0] ?? '');
+    _applyingRemote = true;
+    return { ...next, rooms, activeRoomId, _rev: s._rev + 1 };
+  });
+}
+
+/** Starts server sync. Called once from the app entry point. */
+export function initSync(): void {
+  setSyncAuthor(useStore.getState().currentUser?.id ?? null);
+
+  // The save indicator now reports whether work has actually reached the
+  // server, which is the only thing that matters once several people share
+  // one project — a local-only "saved" would be actively misleading.
+  onSyncStatus((status) => {
+    useSaveStore.setState(
+      status === 'offline'
+        ? { saveStatus: 'error', saveError: 'Not connected to the server' }
+        : status === 'syncing'
+          ? { saveStatus: 'saving', saveError: null }
+          : { saveStatus: 'saved', saveError: null, lastSavedAt: Date.now() },
+    );
+  });
+  void startServerSync({
+    getState: () => sharedOf(useStore.getState()),
+    applyRemote,
+    buildSeed: () => {
+      const demo = buildDemo();
+      return {
+        rooms: demo.rooms,
+        roomOrder: demo.roomOrder,
+        tags: demo.tags,
+        checkouts: {},
+        activityLog: [],
+        projectMeta: useStore.getState().projectMeta,
+        knownUsers: [],
+      };
+    },
+    onReady: () => useStore.setState({ syncReady: true }),
+  });
+
+  window.addEventListener('beforeunload', flushBeforeUnload);
+}

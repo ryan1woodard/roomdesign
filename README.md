@@ -55,8 +55,9 @@ things laid out as cards, exactly where they physically are.
 - **Minimap** — small overview with a click-to-jump viewport indicator.
 - **Room properties** — name, notes, floor color/opacity, and an importable
   blueprint reference image with adjustable opacity to trace over.
-- **Auto-save** — every change is persisted to IndexedDB, with a periodic
-  recovery snapshot as a safety net. There is no save button.
+- **Multi-user** — runs on a server everyone connects to; edits sync per
+  entity, so two people working at once never overwrite each other. Undo is
+  per-person. See "Running it on a server" below.
 - **Design** — dark-mode-first, glassmorphism, rounded corners, and animated
   transitions throughout.
 
@@ -65,21 +66,128 @@ things laid out as cards, exactly where they physically are.
 - **React + TypeScript + Vite**
 - **react-konva / Konva** for the interactive canvas
 - **Zustand** for state, with a coalescing undo/redo history, scoped per room
-- **localforage** (IndexedDB) for persistence via Zustand's `persist` middleware
 - **framer-motion** for overlay/drawer transitions
+- **Express + SQLite** (`server/`) for the shared, multi-user backend
+- **localforage** (IndexedDB) for this device's own preferences only
 
-The code separates concerns: rendering (`components/`), state + persistence
-(`store/`), and pure inventory/geometry logic (`lib/`), so a cloud sync layer
-can be added behind the same store API later.
+The code separates concerns: rendering (`components/`), state (`store/`), and
+pure inventory/geometry logic (`lib/`). Multi-user sync is isolated to
+`lib/entities.ts` (decomposing state into per-entity operations) and
+`lib/serverSync.ts` (upload queue + delta polling), hooked into the store at
+its single mutation chokepoint — so none of the ~60 individual actions have
+to know a server exists.
 
-## Getting started
+## Running it on a server (multi-user)
+
+The app is designed to run as one process on a server computer that everyone
+points a browser at. All rooms, furniture, inventory, tags, checkouts and the
+activity log live on that server, so every person sees and edits the same
+data — there is no per-browser copy.
 
 ```bash
 npm install
-npm run dev      # start the dev server (http://localhost:5173)
-npm run build    # type-check + production build
-npm run preview  # preview the production build
+npm run build     # compile the front-end into dist/
+npm run server    # serve the app + API on port 8080
+# or in one step:
+npm start
 ```
+
+Then everyone opens `http://<server-name-or-ip>:8080`. Set `PORT` to use a
+different port, `HOST` to restrict which interface it binds to, and
+`DATA_DIR` to move the database.
+
+### How multi-user editing works
+
+The unit of concurrency is the **individual entity** — one object, one item,
+one wall, one tag. When you drag a shelf, only that shelf is sent to the
+server; when a co-worker edits an item in another room, only that item is
+sent. Two people working on different things therefore never collide at all.
+If two people edit *the same* field at the same moment, the later write wins,
+which is what people expect.
+
+Each browser polls for changes every few seconds, so an open tab picks up
+other people's edits on its own, and a refresh always shows the current
+state. The header indicator reports whether your work has actually reached
+the server:
+
+| Indicator | Meaning |
+| --- | --- |
+| **Saved** | Everything you've done is on the server. |
+| **Saving…** | A change is in flight. |
+| **Offline** | The server can't be reached. Your edits are queued locally and upload automatically when it comes back — nothing is lost, but nobody else can see them yet. |
+
+**Undo is per-person.** Your undo stack contains only the changes *you* made
+and rewinds only those, so pressing Ctrl+Z can never roll back a co-worker's
+unrelated work.
+
+**What stays on your own machine:** your display units, Design/Inventory
+mode, the Labels and Icons toggles, which room you have open, and where each
+room's camera is pointed. These are per-person view preferences — syncing
+them would mean one person panning would drag everyone else's screen along.
+
+### Accounts
+
+There are no passwords. Anyone who can reach the server picks a name from the
+shared roster (or adds themselves), and that name is used to attribute
+changes in the activity log. **This assumes the server is only reachable by
+people you trust** — e.g. on an internal network. Don't expose it directly to
+the internet without putting authentication in front of it (a reverse proxy
+with basic auth or SSO is the usual approach).
+
+### Keeping it running
+
+`npm run server` is a foreground process; nothing restarts it if it crashes
+or the machine reboots. For real use put it under a process manager:
+
+```ini
+# /etc/systemd/system/srs-lab-designer.service
+[Unit]
+Description=SRS Lab Designer
+After=network.target
+
+[Service]
+WorkingDirectory=/opt/roomdesign
+ExecStart=/usr/bin/node server/index.js
+Restart=always
+Environment=PORT=8080
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl enable --now srs-lab-designer
+```
+
+(`pm2 start server/index.js --name srs-lab-designer` works just as well.)
+
+### Backups
+
+Everything shared lives in one SQLite file, `server/data/app.db`. Copy or
+snapshot it like any other database file — that single file is the whole
+project. It's git-ignored because it's per-deployment data, not source.
+
+```bash
+sqlite3 server/data/app.db ".backup '/backups/app-$(date +%F).db'"
+```
+
+### Upgrading
+
+Pull, rebuild, restart — the database is untouched by a redeploy:
+
+```bash
+git pull && npm install && npm run build && sudo systemctl restart srs-lab-designer
+```
+
+## Local development
+
+```bash
+npm run server   # API on :8080 (leave running)
+npm run dev      # Vite on :5173, proxies /api to :8080
+```
+
+`npm run build` type-checks and produces the production bundle;
+`npm run typecheck` runs the type-checker alone.
 
 ## Keyboard shortcuts
 

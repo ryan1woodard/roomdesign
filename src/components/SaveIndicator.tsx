@@ -2,11 +2,14 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Save } from 'lucide-react';
 import { useStore, useSaveStore } from '../store/store';
 
+// Reflects whether work has reached the *server*, which is what matters once
+// several people share one project — the only failure mode left is losing
+// contact with it, so that's what the failed state says.
 const STATUS_LABEL: Record<string, string> = {
   saved: 'Saved',
   saving: 'Saving…',
   unsaved: 'Unsaved',
-  error: 'Save failed',
+  error: 'Offline',
 };
 
 export default function SaveIndicator() {

@@ -15,7 +15,7 @@ export default function LoginScreen() {
       <div className="login-card glass">
         <div className="loading-mark">◆</div>
         <div className="loading-name">SRS Lab Designer</div>
-        <p className="login-sub">Sign in to identify your changes. This device will remember you.</p>
+        <p className="login-sub">Choose who you are so your changes are attributed. Everyone using this server shares the same rooms and inventory.</p>
 
         {!showForm && knownUsers.length > 0 && (
           <div className="login-known-list">

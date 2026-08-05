@@ -49,6 +49,8 @@ function useUnsavedChangesGuard() {
 
 export default function App() {
   const hydrated = useHydrated();
+  const syncReady = useStore((s) => s.syncReady);
+  const activeRoom = useStore((s) => s.rooms[s.activeRoomId]);
   useUnsavedChangesGuard();
   const currentUser = useStore((s) => s.currentUser);
   const undo = useStore((s) => s.undo);
@@ -190,8 +192,11 @@ export default function App() {
     setMode,
   ]);
 
-  if (!hydrated) return <LoadingScreen />;
+  // Wait for both the local prefs and the project itself: until the server
+  // responds there are no rooms, and every panel below assumes one exists.
+  if (!hydrated || !syncReady) return <LoadingScreen />;
   if (!currentUser) return <LoginScreen />;
+  if (!activeRoom) return <LoadingScreen />;
 
   return (
     <div className="app-root">
