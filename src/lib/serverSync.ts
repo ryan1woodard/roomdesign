@@ -76,9 +76,14 @@ function trackPending(ops: readonly EntityOp[], delta: 1 | -1) {
   }
 }
 
+/** Ceiling on any single request. Without it, a server that accepts the
+ *  connection but never answers would hang startup indefinitely. */
+const REQUEST_TIMEOUT_MS = 8000;
+
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
     ...init,
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
   });
   if (!res.ok) throw new Error(`${init?.method ?? 'GET'} ${path} → ${res.status}`);

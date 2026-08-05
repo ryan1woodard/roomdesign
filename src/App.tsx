@@ -12,6 +12,7 @@ import ShelfLayoutModal from './components/ShelfLayoutModal';
 import DrawerView from './components/DrawerView';
 import ObjectContextMenu from './components/ObjectContextMenu';
 import LoadingScreen from './components/LoadingScreen';
+import ServerUnavailable from './components/ServerUnavailable';
 import LogViewer from './components/LogViewer';
 import InventoryDatabase from './components/InventoryDatabase';
 import PersonalInventory from './components/PersonalInventory';
@@ -195,8 +196,10 @@ export default function App() {
   // Wait for both the local prefs and the project itself: until the server
   // responds there are no rooms, and every panel below assumes one exists.
   if (!hydrated || !syncReady) return <LoadingScreen />;
+  // Loaded, but with nothing to show — the server is unreachable. Say so
+  // rather than sitting on a spinner the user can't interpret.
+  if (!activeRoom) return <ServerUnavailable />;
   if (!currentUser) return <LoginScreen />;
-  if (!activeRoom) return <LoadingScreen />;
 
   return (
     <div className="app-root">

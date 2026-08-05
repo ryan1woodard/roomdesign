@@ -182,9 +182,16 @@ git pull && npm install && npm run build && sudo systemctl restart srs-lab-desig
 ## Local development
 
 ```bash
-npm run server   # API on :8080 (leave running)
-npm run dev      # Vite on :5173, proxies /api to :8080
+npm run dev
 ```
+
+That starts both halves together — the API server on :8080 and Vite on
+:5173 (which proxies `/api` to it). Open http://localhost:5173.
+
+Running `vite` alone won't work: with no API server behind it the app has
+nothing to load and will tell you it can't reach the server. Use
+`npm run dev:web` / `npm run dev:server` if you deliberately want them in
+separate terminals.
 
 `npm run build` type-checks and produces the production bundle;
 `npm run typecheck` runs the type-checker alone.
